@@ -89,8 +89,8 @@ class SRFlowModel(SRModel):
         assert len(self.optimizers) == 1, self.optimizers
         assert len(self.optimizer_G.param_groups[1]['params']) == 0, self.optimizer_G.param_groups[1]
         for k, v in self.netG.named_parameters():  # can optimize for a part of the model
-            if v.requires_grad:
-                if '.RRDB.' in k:
+            if '.RRDB.' in k:
+                if v.requires_grad:
                     self.optimizer_G.param_groups[1]['params'].append(v)
         assert len(self.optimizer_G.param_groups[1]['params']) > 0
 
@@ -163,19 +163,19 @@ class SRFlowModel(SRModel):
                     output=self.fake_H, target=self.real_H,
                     loc_model=self.netLoc)
 
-            if self.generatorlosses.loss_list:
-                with self.cast():
-                    # regular losses
-                    loss_results, self.log_dict = self.generatorlosses(
-                        self.fake_H, self.real_H, self.log_dict, self.f_low)
-                    l_g_total += sum(loss_results) / self.accumulations
-
-            if self.generatorlosses.precise_loss_list:
-                # high precision generator losses (can be affected by AMP half precision)
+        if self.generatorlosses.loss_list:
+            with self.cast():
+                # regular losses
                 loss_results, self.log_dict = self.generatorlosses(
-                    self.fake_H, self.real_H, self.log_dict, self.f_low,
-                    precise=True)
+                    self.fake_H, self.real_H, self.log_dict, self.f_low)
                 l_g_total += sum(loss_results) / self.accumulations
+
+        if self.generatorlosses.precise_loss_list:
+            # high precision generator losses (can be affected by AMP half precision)
+            loss_results, self.log_dict = self.generatorlosses(
+                self.fake_H, self.real_H, self.log_dict, self.f_low,
+                precise=True)
+            l_g_total += sum(loss_results) / self.accumulations
 
         # calculate G gradients
         self.calc_gradients(l_g_total)
@@ -255,14 +255,20 @@ class SRFlowModel(SRModel):
             H = int(self.opt['scale'] * lr_shape[2] // self.netG.module.flowUpsamplerNet.scaleH)
             W = int(self.opt['scale'] * lr_shape[3] // self.netG.module.flowUpsamplerNet.scaleW)
             size = (batch_size, C, H, W)
-            z = torch.normal(mean=0, std=heat, size=size) if heat > 0 else torch.zeros(
-                size)
+            return (
+                torch.normal(mean=0, std=heat, size=size)
+                if heat > 0
+                else torch.zeros(size)
+            )
         else:
             L = opt_get(self.opt, ['network_G', 'flow', 'L']) or 3
             fac = 2 ** (L - 3)
             z_size = int(self.lr_size // (2 ** (L - 3)))
-            z = torch.normal(mean=0, std=heat, size=(batch_size, 3 * 8 * 8 * fac * fac, z_size, z_size))
-        return z
+            return torch.normal(
+                mean=0,
+                std=heat,
+                size=(batch_size, 3 * 8 * 8 * fac * fac, z_size, z_size),
+            )
 
     def get_current_visuals(self, need_HR=True):
         out_dict = OrderedDict()

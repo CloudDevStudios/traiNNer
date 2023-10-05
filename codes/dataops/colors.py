@@ -89,15 +89,18 @@ def rgb_to_yuv(input: torch.Tensor, consts='yuv'):
         # HDTV YUV
         Wr = 0.2126
         Wb = 0.0722
-        Wg = 1 - Wr - Wb  # 0.7152
         Uc = 0.539
         Vc = 0.635
         delta: float = 0.5  # 128 if image range in [0,255]
+    elif consts == 'y':
+        # returns only Y channel, same as rgb_to_grayscale()
+        # Note: torchvision uses ITU-R 601-2: Wr = 0.2989, Wg = 0.5870, Wb = 0.1140
+        Wr = 0.299
+        Wb = 0.114
     elif consts == 'ycbcr':
         # Alt. BT.601 from Kornia YCbCr values, from JPEG conversion
         Wr = 0.299
         Wb = 0.114
-        Wg = 1 - Wr - Wb  # 0.587
         Uc = 0.564  # (b-y) #cb
         Vc = 0.713  # (r-y) #cr
         delta: float = .5  # 128 if image range in [0,255]
@@ -106,47 +109,36 @@ def rgb_to_yuv(input: torch.Tensor, consts='yuv'):
         # https://github.com/kornia/kornia/blob/master/kornia/color/yuv.py
         Wr = 0.299
         Wb = 0.114
-        Wg = 1 - Wr - Wb  # 0.587
         Ur = -0.147
         Ug = -0.289
         Ub = 0.436
         Vr = 0.615
         Vg = -0.515
         Vb = -0.100
-        # delta: float = 0.0
-    elif consts == 'y':
-        # returns only Y channel, same as rgb_to_grayscale()
-        # Note: torchvision uses ITU-R 601-2: Wr = 0.2989, Wg = 0.5870, Wb = 0.1140
-        Wr = 0.299
-        Wb = 0.114
-        Wg = 1 - Wr - Wb  # 0.587
     else:
         # Default to 'BT.601', SDTV YUV
         Wr = 0.299
         Wb = 0.114
-        Wg = 1 - Wr - Wb  # 0.587
         Uc = 0.493  # 0.492
         Vc = 0.877
         delta: float = 0.5  # 128 if image range in [0,255]
 
+    Wg = 1 - Wr - Wb  # 0.7152
     r: torch.Tensor = input[..., 0, :, :]
     g: torch.Tensor = input[..., 1, :, :]
     b: torch.Tensor = input[..., 2, :, :]
+    y: torch.Tensor = Wr * r + Wg * g + Wb * b
     # TODO: Alt. Which one is faster? Appear to be the same.
     # Differentiable? Kornia uses both in different places
     # r, g, b = torch.chunk(input, chunks=3, dim=-3)
 
     if consts == 'y':
-        y: torch.Tensor = Wr * r + Wg * g + Wb * b
         # (0.2989 * input[0] + 0.5870 * input[1] + 0.1140 * input[2]).to(img.dtype)
         return y
     elif consts == 'yuvK':
-        y: torch.Tensor = Wr * r + Wg * g + Wb * b
         u: torch.Tensor = Ur * r + Ug * g + Ub * b
         v: torch.Tensor = Vr * r + Vg * g + Vb * b
     else:
-        # if consts == 'ycbcr' or consts == 'yuv' or consts == 'BT.709':
-        y: torch.Tensor = Wr * r + Wg * g + Wb * b
         u: torch.Tensor = (b - y) * Uc + delta  # cb
         v: torch.Tensor = (r - y) * Vc + delta  # cr
 
@@ -170,7 +162,7 @@ def yuv_to_rgb(input: torch.Tensor, consts='yuv') -> torch.Tensor:
         Wgu = 0.396  # .344136
         Wgv = 0.581  # .714136
         delta: float = 0.0
-    elif consts == 'yuv' or consts == 'ycbcr':
+    elif consts in ['yuv', 'ycbcr']:
         # BT.601 from Kornia YCbCr values, from JPEG conversion
         Wr = 1.403  # 1.402
         Wb = 1.773  # 1.772
@@ -251,15 +243,14 @@ def get_colorshift_weights(mode='uniform', Y=False):
             r_weight = np.random.uniform(low=-1.0, high=1.0)
             g_weight = np.random.uniform(low=-1.0, high=1.0)
             b_weight = np.random.uniform(low=-1.0, high=1.0)
-    else:
-        if mode == 'normal':
-            r_weight = np.random.normal(loc=0.299, scale=0.1)
-            g_weight = np.random.normal(loc=0.587, scale=0.1)
-            b_weight = np.random.normal(loc=0.114, scale=0.1)
-        elif mode == 'uniform':
-            r_weight = np.random.uniform(low=0.199, high=0.399)
-            g_weight = np.random.uniform(low=0.487, high=0.687)
-            b_weight = np.random.uniform(low=0.014, high=0.214)
+    elif mode == 'normal':
+        r_weight = np.random.normal(loc=0.299, scale=0.1)
+        g_weight = np.random.normal(loc=0.587, scale=0.1)
+        b_weight = np.random.normal(loc=0.114, scale=0.1)
+    elif mode == 'uniform':
+        r_weight = np.random.uniform(low=0.199, high=0.399)
+        g_weight = np.random.uniform(low=0.487, high=0.687)
+        b_weight = np.random.uniform(low=0.014, high=0.214)
 
     return torch.Tensor([r_weight, g_weight, b_weight])
 

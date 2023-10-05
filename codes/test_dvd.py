@@ -20,7 +20,8 @@ def main():
                         help='Path to options file.')
     opt = options.parse(parser.parse_args().opt, is_train=False)
     util.mkdirs(
-        (path for key, path in opt['path'].items() if not key == 'pretrain_model_G'))
+        path for key, path in opt['path'].items() if key != 'pretrain_model_G'
+    )
     opt = options.dict_to_nonedict(opt)
 
     util.get_root_logger(None, opt['path']['log'],
@@ -57,7 +58,7 @@ def main():
         test_results['ssim_y'] = []
 
         for data in test_loader:
-            need_HR = False if test_loader.dataset.opt['dataroot_HR'] is None else True
+            need_HR = test_loader.dataset.opt['dataroot_HR'] is not None
 
             model.feed_data(data, need_HR=need_HR)
             img_path = data['in_path'][0]
@@ -70,15 +71,13 @@ def main():
             top_img = tensor2np(visuals['top_fake'])  # uint8
             bot_img = tensor2np(visuals['bottom_fake'])  # uint8
 
-            # save images
-            suffix = opt['suffix']
-            if suffix:
+            if suffix := opt['suffix']:
                 save_img_path = os.path.join(
                     dataset_dir, img_name + suffix)
             else:
                 save_img_path = os.path.join(dataset_dir, img_name)
-            util.save_img(top_img, save_img_path + '_top.png')
-            util.save_img(bot_img, save_img_path + '_bot.png')
+            util.save_img(top_img, f'{save_img_path}_top.png')
+            util.save_img(bot_img, f'{save_img_path}_bot.png')
 
 
             #TODO: update to use metrics functions

@@ -75,19 +75,13 @@ class UnetGeneratorWBC(nn.Module):
         x0 = self.leaky_relu(x0)  # 256, 256, 32
 
         # conv block 1
-        if self.mode == 'tf':
-            x1 = self.conv_1(tf_same_padding(x0))
-        else:
-            x1 = self.conv_1(x0)
+        x1 = self.conv_1(tf_same_padding(x0)) if self.mode == 'tf' else self.conv_1(x0)
         x1 = self.leaky_relu(x1)
         x1 = self.conv_2(x1)
         x1 = self.leaky_relu(x1)  # 128, 128, 64
 
         # conv block 2
-        if self.mode == 'tf':
-            x2 = self.conv_3(tf_same_padding(x1))
-        else:
-            x2 = self.conv_3(x1)
+        x2 = self.conv_3(tf_same_padding(x1)) if self.mode == 'tf' else self.conv_3(x1)
         x2 = self.leaky_relu(x2)
         x2 = self.conv_4(x2)
         x2 = self.leaky_relu(x2)  # 64, 64, 128
@@ -133,7 +127,9 @@ class GeneratorWBC(nn.Module):
         self.conv_4 = nn.Conv2d(nf*4, nf*4, 3, padding=1)  # k3n128s1
 
         # K3n128s1, 4 residual blocks
-        self.resblock = nn.Sequential(*[ResBlock(nf*4, nf*4, slope=slope) for i in range(num_blocks)])
+        self.resblock = nn.Sequential(
+            *[ResBlock(nf * 4, nf * 4, slope=slope) for _ in range(num_blocks)]
+        )
 
         self.conv2d_transpose_1 = nn.ConvTranspose2d(
             nf*4, nf*2, kernel_size=3, stride=2, padding=1)
@@ -213,8 +209,7 @@ class DownBlock(nn.Module):
 
 
     def forward(self, inputs):
-        output = self.conv_layer(inputs)
-        return output
+        return self.conv_layer(inputs)
 
 
 class UpBlock(nn.Module):
@@ -235,10 +230,7 @@ class UpBlock(nn.Module):
 
     def forward(self, inputs):
         output = self.conv_layer(inputs)
-        if self.is_last:
-            output = self.last_act(output)
-        else:
-            output = self.act(output)
+        output = self.last_act(output) if self.is_last else self.act(output)
         return output
 
 

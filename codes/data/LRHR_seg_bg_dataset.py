@@ -31,10 +31,10 @@ class LRHRSeg_BG_Dataset(BaseDataset):
 
         # read backgrounds image list from lmdb or image files
         self.paths_HR_bg = util.get_image_paths(opt['data_type'], opt['dataroot_HR_bg'])
-        
+
         if self.opt.get('data_type') == 'lmdb':
-            self.LR_env = util._init_lmdb(opt.get('dataroot_'+self.keys_ds[0]))
-            self.HR_env = util._init_lmdb(opt.get('dataroot_'+self.keys_ds[1]))
+            self.LR_env = util._init_lmdb(opt.get(f'dataroot_{self.keys_ds[0]}'))
+            self.HR_env = util._init_lmdb(opt.get(f'dataroot_{self.keys_ds[1]}'))
             self.HR_env_bg = util._init_lmdb(opt.get('dataroot_HR_bg'))
 
         assert len(self.paths_HR) == len(self.paths_HR_bg)

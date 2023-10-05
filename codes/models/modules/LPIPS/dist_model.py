@@ -58,20 +58,26 @@ class DistModel(BaseModel):
         self.is_train = is_train
         self.spatial = spatial
         self.gpu_ids = gpu_ids
-        self.model_name = '%s [%s]'%(model,net)
+        self.model_name = f'{model} [{net}]'
 
-        if(self.model == 'net-lin'): # pretrained net + linear layer
+        if (self.model == 'net-lin'): # pretrained net + linear layer
             self.net = networks.PNetLin(pnet_rand=pnet_rand, pnet_tune=pnet_tune, pnet_type=net,
                 use_dropout=True, spatial=spatial, version=version, lpips=True)
             kw = {}
             if not use_gpu:
                 kw['map_location'] = 'cpu'
-            if(model_path is None):
+            if (model_path is None):
                 import inspect
-                model_path = os.path.abspath(os.path.join(inspect.getfile(self.initialize), '..', 'lpips_weights/v%s/%s.pth'%(version,net)))
+                model_path = os.path.abspath(
+                    os.path.join(
+                        inspect.getfile(self.initialize),
+                        '..',
+                        f'lpips_weights/v{version}/{net}.pth',
+                    )
+                )
 
-            if(not is_train):
-                print('Loading model from: %s'%model_path)
+            if (not is_train):
+                print(f'Loading model from: {model_path}')
                 self.net.load_state_dict(torch.load(model_path, **kw), strict=False)
 
         elif(self.model=='net'): # pretrained network
@@ -83,7 +89,7 @@ class DistModel(BaseModel):
             self.net = networks.DSSIM(use_gpu=use_gpu,colorspace=colorspace)
             self.model_name = 'SSIM'
         else:
-            raise ValueError("Model [%s] not recognized." % self.model)
+            raise ValueError(f"Model [{self.model}] not recognized.")
 
         self.parameters = list(self.net.parameters())
 

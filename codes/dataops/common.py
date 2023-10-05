@@ -99,9 +99,7 @@ def _read_lmdb_img(key, lmdb_env):
     with lmdb_env.begin(write=False) as txn:
         buf = txn.get(key.encode('ascii'))
 
-    # return buf
-    img = imfrombytes(buf)  # float32=True
-    return img
+    return imfrombytes(buf)
 
 
 def imfrombytes(content, flag='color', float32=False):
@@ -163,7 +161,7 @@ def read_img(env=None, path=None, out_nc=3, fix_channels=True, lmdb_env=None, lo
     elif env == 'buffer':
         img = cv2.imdecode(path, cv2.IMREAD_UNCHANGED)
     else:
-        raise NotImplementedError("Unsupported env: {}".format(env))
+        raise NotImplementedError(f"Unsupported env: {env}")
 
     # if (not isinstance(img, np.ndarray)): # or (not isinstance(img, Image.Image)):
     #     raise ValueError(f"Failed to read image: {path}")
@@ -285,18 +283,17 @@ def bgr2ycbcr(img, only_y=True, separate=False):
                               [65.481, -37.797, 112.0]]) / 255.0 + [16, 128, 128]
         # to make ycrcb like cv2
         # rlt = rlt[:, :, (0, 2, 1)]
-    
+
     if in_img_type == np.uint8:
         rlt = rlt.round()
     else:
         rlt /= 255.
-    
-    if separate:
-        rlt = rlt.astype(in_img_type)
-        # y, cb, cr
-        return rlt[:, :, 0], rlt[:, :, 1], rlt[:, :, 2]
-    else:
+
+    if not separate:
         return rlt.astype(in_img_type)
+    rlt = rlt.astype(in_img_type)
+    # y, cb, cr
+    return rlt[:, :, 0], rlt[:, :, 1], rlt[:, :, 2]
 
 '''
 def ycbcr2rgb_(img, only_y=True):
@@ -522,22 +519,13 @@ def tensor2np(img, rgb2bgr=True, remove_batch=True, data_range=255,
 
     if n_dim in (4, 3):
         #if n_dim == 4, has to convert to 3 dimensions, either removing batch or by creating a grid
-        if n_dim == 4 and remove_batch:
-            if img.shape[0] > 1:
-                # leave only the first image in the batch and remove batch dimension
-                img = img[0,...] 
+        if n_dim == 4:
+            if remove_batch:
+                img = img[0,...] if img.shape[0] > 1 else img.squeeze(dim=0)
             else:
-                # remove a fake batch dimension
-                img = img.squeeze(dim=0)
-                #TODO: the following 'if' should not be required
-                ## squeeze removes batch and channel of grayscale images (dimensions = 1)
-                # if len(img.shape) < 3: 
-                #     #add back the lost channel dimension
-                #     img = img.unsqueeze(dim=0)
-        elif n_dim == 4 and not remove_batch:
-            # convert images in batch (BCHW) to a grid of all images (C B*H B*W)
-            n_img = len(img)
-            img = make_grid(img, nrow=int(math.sqrt(n_img)), normalize=False)
+                # convert images in batch (BCHW) to a grid of all images (C B*H B*W)
+                n_img = len(img)
+                img = make_grid(img, nrow=int(math.sqrt(n_img)), normalize=False)
 
         if img.shape[0] == 3 and rgb2bgr: #RGB
             #RGB to BGR -> in tensor, if using OpenCV, else not needed. Only if image has colors.
@@ -554,8 +542,6 @@ def tensor2np(img, rgb2bgr=True, remove_batch=True, data_range=255,
         raise TypeError(
             'Only support 4D, 3D and 2D tensor. But received with dimension: {:d}'.format(n_dim))
 
-    #if rgb2bgr:
-        #img_np = img_np[[2, 1, 0], :, :] #RGB to BGR -> in numpy, if using OpenCV, else not needed. Only if image has colors.
     #TODO: Check: could denormalize in the begining in tensor form instead
     if denormalize:
         img_np = denorm(img_np) #denormalize if needed

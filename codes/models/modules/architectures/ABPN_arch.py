@@ -98,11 +98,8 @@ class ABPN_v3(nn.Module):
         SR_res = self.SR_conv3(HR_feat + LR_feat)
         # bic_x = F.interpolate(bic_x, scale_factor=8, mode='bilinear', align_corners=False) #mode='bilinear' PyTorch 0.4.1
         bic_x = F.interpolate(bic_x, scale_factor=8, mode='bicubic', align_corners=False) #mode='bicubic' PyTorch > 1.1.0
-        
-        SR = bic_x + SR_res
 
-        
-        return SR
+        return bic_x + SR_res
 
 
 class ABPN_v5(nn.Module):
@@ -385,16 +382,10 @@ class Space_attention(torch.nn.Module):
         K = self.K(x)
         Q = self.Q(x)
         # Q = F.interpolate(Q, scale_factor=1 / self.scale, mode='bilinear', align_corners=False) #mode='bicubic' PyTorch > 1.1.0
-        if self.stride > 1:
-            Q = self.pool(Q)
-        else:
-            Q = Q
+        Q = self.pool(Q) if self.stride > 1 else Q
         V = self.V(x)
         # V = F.interpolate(V, scale_factor=1 / self.scale, mode='bilinear', align_corners=False) #mode='bicubic' PyTorch > 1.1.0
-        if self.stride > 1:
-            V = self.pool(V)
-        else:
-            V = V
+        V = self.pool(V) if self.stride > 1 else V
         V_reshape = V.view(batch_size, self.output_size, -1)
         V_reshape = V_reshape.permute(0, 2, 1)
         # if self.type == 'softmax':
@@ -410,9 +401,7 @@ class Space_attention(torch.nn.Module):
         vector_reshape = vector.permute(0, 2, 1).contiguous()
         O = vector_reshape.view(batch_size, self.output_size, x.size(2) // self.stride, x.size(3) // self.stride)
         W = self.local_weight(O)
-        output = x + W
-        #output = self.bn(output)
-        return output
+        return x + W
 
 class Space_attention_v2(torch.nn.Module):
     def __init__(self, input_size, output_size, kernel_size, stride, padding, scale):
@@ -442,16 +431,10 @@ class Space_attention_v2(torch.nn.Module):
         K = self.K(x)
         Q = self.Q(x)
         # Q = F.interpolate(Q, scale_factor=1 / self.scale, mode='bicubic', align_corners=False) #mode='bicubic' PyTorch > 1.1.0
-        if self.stride > 1:
-            Q = self.pool(Q)
-        else:
-            Q = Q
+        Q = self.pool(Q) if self.stride > 1 else Q
         V = self.V(x)
         # V = F.interpolate(V, scale_factor=1 / self.scale, mode='bicubic', align_corners=False) #mode='bicubic' PyTorch > 1.1.0
-        if self.stride > 1:
-            V = self.pool(V)
-        else:
-            V = V
+        V = self.pool(V) if self.stride > 1 else V
         V_reshape = V.view(batch_size, self.output_size, -1)
         V_reshape = V_reshape.permute(0, 2, 1)
         # if self.type == 'softmax':
@@ -467,9 +450,7 @@ class Space_attention_v2(torch.nn.Module):
         vector_reshape = vector.permute(0, 2, 1).contiguous()
         O = vector_reshape.view(batch_size, self.output_size, x.size(2) // self.stride, x.size(3) // self.stride)
         W = self.local_weight(O)
-        output = x + W
-        #output = self.bn(output)
-        return output
+        return x + W
 
 class Time_attention(torch.nn.Module):
     def __init__(self, input_size, output_size, kernel_size, stride, padding, scale):
@@ -501,16 +482,10 @@ class Time_attention(torch.nn.Module):
         K = self.K(x)
         Q = self.Q(x)
         # Q = F.interpolate(Q, scale_factor=1 / self.scale, mode='bicubic', align_corners=False) #mode='bicubic' PyTorch > 1.1.0
-        if self.stride > 1:
-            Q = self.pool(Q)
-        else:
-            Q = Q
+        Q = self.pool(Q) if self.stride > 1 else Q
         V = self.V(y)
         # V = F.interpolate(V, scale_factor=1 / self.scale, mode='bicubic', align_corners=False) #mode='bicubic' PyTorch > 1.1.0
-        if self.stride > 1:
-            V = self.pool(V)
-        else:
-            V = V
+        V = self.pool(V) if self.stride > 1 else V
         #attention = x
         V_reshape = V.view(batch_size, self.output_size, -1)
         V_reshape = V_reshape.permute(0, 2, 1)
@@ -527,9 +502,7 @@ class Time_attention(torch.nn.Module):
         vector_reshape = vector.permute(0, 2, 1).contiguous()
         O = vector_reshape.view(batch_size, self.output_size, x.size(2) // self.stride, x.size(3) // self.stride)
         W = self.local_weight(O)
-        output = y + W
-        #output = self.bn(output)
-        return output
+        return y + W
 
 class Time_attention_v2(torch.nn.Module):
     def __init__(self, input_size, output_size, kernel_size, stride, padding, scale):
@@ -559,16 +532,10 @@ class Time_attention_v2(torch.nn.Module):
         K = self.K(x)
         Q = self.Q(x)
         # Q = F.interpolate(Q, scale_factor=1 / self.scale, mode='bicubic', align_corners=False) #mode='bicubic' PyTorch > 1.1.0
-        if self.stride > 1:
-            Q = self.pool(Q)
-        else:
-            Q = Q
+        Q = self.pool(Q) if self.stride > 1 else Q
         V = self.V(y)
         # V = F.interpolate(V, scale_factor=1 / self.scale, mode='bicubic', align_corners=False) #mode='bicubic' PyTorch > 1.1.0
-        if self.stride > 1:
-            V = self.pool(V)
-        else:
-            V = V
+        V = self.pool(V) if self.stride > 1 else V
         #attention = x
         V_reshape = V.view(batch_size, self.output_size, -1)
         V_reshape = V_reshape.permute(0, 2, 1)
@@ -585,9 +552,7 @@ class Time_attention_v2(torch.nn.Module):
         vector_reshape = vector.permute(0, 2, 1).contiguous()
         O = vector_reshape.view(batch_size, self.output_size, x.size(2) // self.stride, x.size(3) // self.stride)
         W = self.local_weight(O)
-        output = y + W
-        #output = self.bn(output)
-        return output
+        return y + W
 
 class Space_Time_Attention(torch.nn.Module):
     def __init__(self, input_size, output_size, kernel_size, stride, padding, scale):

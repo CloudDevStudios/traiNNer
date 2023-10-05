@@ -61,7 +61,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-opt', type=str, required=True, help='Path to options file.')
     opt = options.parse(parser.parse_args().opt, is_train=False)
-    util.mkdirs((path for key, path in opt['path'].items() if not key == 'pretrain_model_G'))
+    util.mkdirs(
+        path for key, path in opt['path'].items() if key != 'pretrain_model_G'
+    )
 
     logger = util.get_root_logger(None, opt['path']['log'], 'test.log', level=logging.INFO, screen=True)
     logger = logging.getLogger('base')
@@ -111,7 +113,7 @@ def main():
         test_results['ssim_y'] = []
 
         for data in test_loader:
-            need_HR = False if test_loader.dataset.opt['dataroot_HR'] is None else True
+            need_HR = test_loader.dataset.opt['dataroot_HR'] is not None
 
             img_path = data['LR_path'][0]
             img_name = os.path.splitext(os.path.basename(img_path))[0]
@@ -169,12 +171,10 @@ def main():
             # if znorm the image range is [-1,1], Default: Image range is [0,1] # testing, each "dataset" can have a different name (not train, val or other)
             sr_img = tensor2np(sr_img, denormalize=znorm)  # uint8
 
-            # save images
-            suffix = opt['suffix']
-            if suffix:
+            if suffix := opt['suffix']:
                 save_img_path = os.path.join(dataset_dir, img_name + suffix + '.png')
             else:
-                save_img_path = os.path.join(dataset_dir, img_name + '.png')
+                save_img_path = os.path.join(dataset_dir, f'{img_name}.png')
             util.save_img(sr_img, save_img_path)
 
             # TODO: update to use metrics functions

@@ -131,13 +131,10 @@ def make_color_wheel():
 
     colorwheel = np.zeros([ncols, 3])
 
-    col = 0
-
     # RY
     colorwheel[0:RY, 0] = 255
     colorwheel[0:RY, 1] = np.transpose(np.floor(255 * np.arange(0, RY) / RY))
-    col += RY
-
+    col = 0 + RY
     # YG
     colorwheel[col:col + YG, 0] = 255 - np.transpose(np.floor(255 * np.arange(0, YG) / YG))
     colorwheel[col:col + YG, 1] = 255
@@ -204,17 +201,16 @@ def writeFlow(filename,uv,v=None):
 
     assert(u.shape == v.shape)
     height,width = u.shape
-    f = open(filename,'wb')
-    # write the header
-    f.write(TAG_CHAR)
-    np.array(width).astype(np.int32).tofile(f)
-    np.array(height).astype(np.int32).tofile(f)
-    # arrange into matrix form
-    tmp = np.zeros((height, width*nBands))
-    tmp[:,np.arange(width)*2] = u
-    tmp[:,np.arange(width)*2 + 1] = v
-    tmp.astype(np.float32).tofile(f)
-    f.close()
+    with open(filename,'wb') as f:
+        # write the header
+        f.write(TAG_CHAR)
+        np.array(width).astype(np.int32).tofile(f)
+        np.array(height).astype(np.int32).tofile(f)
+        # arrange into matrix form
+        tmp = np.zeros((height, width*nBands))
+        tmp[:,np.arange(width)*2] = u
+        tmp[:,np.arange(width)*2 + 1] = v
+        tmp.astype(np.float32).tofile(f)
 
 # ref: https://github.com/sampepose/flownet2-tf/
 # blob/18f87081db44939414fc4a48834f9e0da3e69f4c/src/flowlib.py#L240
@@ -225,4 +221,4 @@ def visulize_flow_file(flow_filename, save_dir=None):
     # plt.show()
     if save_dir:
         idx = flow_filename.rfind("/") + 1
-        plt.imsave(os.path.join(save_dir, "%s-vis.png" % flow_filename[idx:-4]), img)
+        plt.imsave(os.path.join(save_dir, f"{flow_filename[idx:-4]}-vis.png"), img)

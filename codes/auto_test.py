@@ -21,12 +21,12 @@ def modify_json(json_path, model_name, iteration):
         json_file.truncate()  # if the new data is smaller than the previous
 
 
-model_iter_dict = {}
-model_iter_dict['100_ESRGAN_SRResNet_pristine_pixel10_minc'] = [80, 85, 90, 95]
-
+model_iter_dict = {
+    '100_ESRGAN_SRResNet_pristine_pixel10_minc': [80, 85, 90, 95]
+}
 for model_name, iter_list in model_iter_dict.items():
     for iteration in iter_list:
         modify_json(test_json_path, model_name, iteration)
         # run test scripts
         print('\n\nTesting {:s} {:d}k...'.format(model_name, iteration))
-        os.system('python test.py -opt ' + test_json_path)
+        os.system(f'python test.py -opt {test_json_path}')

@@ -112,15 +112,11 @@ def tmp_vis(img_t, to_np=True, rgb2bgr=True, remove_batch=False, denormalize=Fal
             # for visualization
             if tensor_shape == 'CTHW':
                 _, _, n_frames, _, _ = img_t.size()
-                frames = []
-                for frame in range(n_frames):
-                    frames.append(img_t[:, :, frame:frame+1, :, :])
+                frames = [img_t[:, :, frame:frame+1, :, :] for frame in range(n_frames)]
                 img_t = torch.cat(frames, -1)
             elif tensor_shape == 'TCHW':
                 _, n_frames, _, _, _ = img_t.size()
-                frames = []
-                for frame in range(n_frames):
-                    frames.append(img_t[:, frame:frame+1, :, :, :])
+                frames = [img_t[:, frame:frame+1, :, :, :] for frame in range(n_frames)]
                 img_t = torch.cat(frames, -1)
             elif tensor_shape == 'CTHW_m':
                 # select only the middle frame of CTHW tensor
@@ -133,14 +129,14 @@ def tmp_vis(img_t, to_np=True, rgb2bgr=True, remove_batch=False, denormalize=Fal
                 center = (n_frames - 1) // 2
                 img_t = img_t[:, center, :, :, :]
             else:
-                TypeError("Unrecognized tensor_shape: {}".format(tensor_shape))
+                TypeError(f"Unrecognized tensor_shape: {tensor_shape}")
 
         img = tensor2np(img_t.detach(), rgb2bgr=rgb2bgr, remove_batch=remove_batch, denormalize=denormalize)
     elif isinstance(img_t, np.ndarray) and not to_np:
         img = img_t
     else:
         raise TypeError("img_t type not supported, expected tensor or ndarray")
-    
+
     print("out: ", img.shape)
     cv2.imshow('image', img)
     cv2.waitKey(0)
@@ -198,14 +194,14 @@ def save_image(image=None, num_rep=0, sufix=None, random=False):
     import uuid, cv2
     from dataops.common import tensor2np
     img = tensor2np(image, remove_batch=False)  # uint8
-    
+
     if random:
         #random name to save + had to multiply by 255, else getting all black image
         hex = uuid.uuid4().hex
-        cv2.imwrite("D:/tmp_test/fake_"+sufix+"_"+str(num_rep)+hex+".png",img)
+        cv2.imwrite(f"D:/tmp_test/fake_{sufix}_{str(num_rep)}{hex}.png", img)
     else:
-        cv2.imwrite("D:/tmp_test/fake_"+sufix+"_"+str(num_rep)+".png",img)
-    
+        cv2.imwrite(f"D:/tmp_test/fake_{sufix}_{str(num_rep)}.png", img)
+
     return None
 
 def diagnose_network(net, name='network'):

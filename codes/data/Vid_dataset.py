@@ -64,7 +64,7 @@ class VidTrainsetLoader(Dataset):
         LR_size = HR_size // scale
         idx_center = (self.num_frames - 1) // 2
         ds_kernel = None
-        
+
         # Default case: tensor will result in the [0,1] range
         # Alternative: tensor will be z-normalized to the [-1,1] range
         znorm  = self.opt.get('znorm', False)
@@ -80,7 +80,7 @@ class VidTrainsetLoader(Dataset):
         else:
             # only one video and paths_LR/paths_HR is already the video dir
             video_dir = ""
-        
+
         # list the frames in the directory 
         # hr_dir = self.trainset_dir + '/' + video_dir + '/hr'
         paths_HR = util.get_image_paths(self.opt['data_type'], os.path.join(self.paths_HR, video_dir))
@@ -89,7 +89,7 @@ class VidTrainsetLoader(Dataset):
         if self.opt['phase'] == 'train':
             # random reverse augmentation
             random_reverse = self.opt.get('random_reverse', False)
-            
+
             # skipping intermediate frames to learn from low FPS videos augmentation
             # testing random frameskip up to 'max_frameskip' frames
             max_frameskip = self.opt.get('max_frameskip', 0)
@@ -102,14 +102,14 @@ class VidTrainsetLoader(Dataset):
 
             assert ((self.num_frames-1)*frameskip) <= (len(paths_HR)-1), (
                 f'num_frame*frameskip must be smaller than the number of frames per video, check {video_dir}')
-            
+
             # if number of frames of training video is for example 31, "max index -num_frames" = 31-3=28
             idx_frame = random.randint(0, (len(paths_HR)-1)-((self.num_frames-1)*frameskip))
             # print('frameskip:', frameskip)
         else:
             frameskip = 1
             idx_frame = idx
-        
+
         '''
         List based frames loading
         '''
@@ -167,7 +167,7 @@ class VidTrainsetLoader(Dataset):
                 HR_center = HR_img
                 # tmp_vis(LR_bicubic, False)
                 # tmp_vis(HR_center, False)
-            
+
             if self.y_only:
                 # extract Y channel from frames
                 # normal path, only Y for both
@@ -198,13 +198,13 @@ class VidTrainsetLoader(Dataset):
                 if self.opt.get('lr_noise', None):
                     if noise_option:
                         LR_img = noise_option(LR_img)
-            
+
                 # expand LR images to add the channel dimension again if needed (blur removes the grayscale channel)
                 #TODO: add a if condition, can compare to the ndim before the augs, maybe move inside the aug condition
                 # if not fullimgchannels: #TODO: TMP, this should be when using srcolors for HR or when training with 3 channels tests, separatedly
                 if self.y_only:
                     LR_img = util.fix_img_channels(LR_img, 1)
-            
+
             # print("HR_img.shape: ", HR_img.shape)
             # print("LR_img.shape", LR_img.shape)
 
@@ -262,11 +262,11 @@ class VidTrainsetLoader(Dataset):
         else:
             HR = util.np2tensor(HR, normalize=znorm, bgr2rgb=True, add_batch=False) # Tensor, [CT',H',W'] or [T, H, W]
             LR = util.np2tensor(LR, normalize=znorm, bgr2rgb=True, add_batch=False) # Tensor, [CT',H',W'] or [T, H, W]
-        
+
         #TODO: TMP to test generating 3 channel images for SR loss
         # HR = util.np2tensor(HR, normalize=znorm, bgr2rgb=False, add_batch=True) # Tensor, [CT',H',W'] or [T, H, W]
         # LR = util.np2tensor(LR, normalize=znorm, bgr2rgb=False, add_batch=True) # Tensor, [CT',H',W'] or [T, H, W]
-        
+
         # if self.srcolors:
         #     HR = HR.view(c,t,HR_size,HR_size) # Tensor, [C,T,H,W]
         if not self.y_only:
@@ -290,7 +290,7 @@ class VidTrainsetLoader(Dataset):
             #TODO: TMP to test generating 3 channel images for SR loss
             # LR_bicubic = util.np2tensor(LR_bicubic, normalize=znorm, bgr2rgb=False, add_batch=True)
             # HR_center = util.np2tensor(HR_center, normalize=znorm, bgr2rgb=False, add_batch=True)
-        elif self.y_only and not self.srcolors:
+        elif self.y_only:
             LR_bicubic = []
             HR_center = []
         else:
@@ -341,7 +341,7 @@ class VidTestsetLoader(Dataset):
 
         # only one video and paths_LR/paths_HR is already the video dir
         video_dir = ""
-        
+
         # list the frames in the directory 
         # hr_dir = self.trainset_dir + '/' + video_dir + '/hr'
 
@@ -391,7 +391,7 @@ class VidTestsetLoader(Dataset):
                 # HR_center = HR_img
                 # tmp_vis(LR_bicubic, False)
                 # tmp_vis(HR_center, False)
-            
+
             if self.y_only:
                 # extract Y channel from frames
                 # normal path, only Y for both
@@ -400,15 +400,15 @@ class VidTestsetLoader(Dataset):
                 # expand Y images to add the channel dimension
                 # normal path, only Y for both
                 LR_img = util.fix_img_channels(LR_img, 1)
-                
+
                 # print("HR_img.shape: ", HR_img.shape)
                 # print("LR_img.shape", LR_img.shape)
 
             LR_list.append(LR_img) # h, w, c
-            
+
             if not self.y_only and (not h_LR or not w_LR):
                 h_LR, w_LR, c = LR_img.shape
-        
+
         if not self.y_only:
             t = self.num_frames
             LR = [np.asarray(LT) for LT in LR_list]  # list -> numpy # input: list (contatin numpy: [H,W,C])
@@ -429,11 +429,9 @@ class VidTestsetLoader(Dataset):
             # generate Cr, Cb channels using bicubic interpolation
             LR_bicubic = util.bgr2ycbcr(LR_bicubic, only_y=False)
             LR_bicubic = util.np2tensor(LR_bicubic, normalize=znorm, bgr2rgb=False, add_batch=False)
-            HR_center = []
         else:
             LR_bicubic = []
-            HR_center = []
-
+        HR_center = []
         # return toTensor(LR), toTensor(HR)
         return {'LR': LR, 'LR_path': LR_name, 'LR_bicubic': LR_bicubic, 'HR_center': HR_center}
 

@@ -76,14 +76,9 @@ class UnalignedDataset(BaseDataset):
                 opt=self.opt, index=index, paths=self.B_paths, env=self.B_env,
                 idx_case=self.idx_case, d_size=self.B_size)
 
-        ######## Modify the images ########
-        # change color space if necessary
-        # TODO: move to get_transform()
-        color_B = self.opt.get('color', None) or self.opt.get('color_B', None)
-        if color_B:
+        if color_B := self.opt.get('color', None) or self.opt.get('color_B', None):
             img_B = channel_convert(image_channels(img_B), color_B, [img_B])[0]
-        color_A = self.opt.get('color', None) or self.opt.get('color_A', None)
-        if color_A:
+        if color_A := self.opt.get('color', None) or self.opt.get('color_A', None):
             img_A = channel_convert(image_channels(img_A), color_A, [img_A])[0]
 
         # apply image transformation
@@ -129,7 +124,7 @@ class UnalignedDataset(BaseDataset):
         ######## Convert images to PyTorch Tensors ########
 
         tensor_transform = get_totensor(
-            self.opt, params=self.totensor_params, toTensor=True, grayscale=False)        
+            self.opt, params=self.totensor_params, toTensor=True, grayscale=False)
         img_A = tensor_transform(img_A)
         img_B = tensor_transform(img_B)
 

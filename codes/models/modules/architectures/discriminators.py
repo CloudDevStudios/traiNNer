@@ -17,20 +17,28 @@ class Discriminator_VGG(nn.Module):
     def __init__(self, size, in_nc, base_nf, norm_type='batch', act_type='leakyrelu', mode='CNA', convtype='Conv2D', arch='ESRGAN'):
         super(Discriminator_VGG, self).__init__()
 
-        conv_blocks = []
-        conv_blocks.append(B.conv_block(  in_nc, base_nf, kernel_size=3, stride=1, norm_type=None, \
-            act_type=act_type, mode=mode))
+        conv_blocks = [
+            B.conv_block(
+                in_nc,
+                base_nf,
+                kernel_size=3,
+                stride=1,
+                norm_type=None,
+                act_type=act_type,
+                mode=mode,
+            )
+        ]
         conv_blocks.append(B.conv_block(base_nf, base_nf, kernel_size=4, stride=2, norm_type=norm_type, \
-            act_type=act_type, mode=mode))
+                act_type=act_type, mode=mode))
 
         cur_size = size // 2
         cur_nc = base_nf
         while cur_size > 4:
             out_nc = cur_nc * 2 if cur_nc < 512 else cur_nc
             conv_blocks.append(B.conv_block(cur_nc, out_nc, kernel_size=3, stride=1, norm_type=norm_type, \
-                act_type=act_type, mode=mode))
+                    act_type=act_type, mode=mode))
             conv_blocks.append(B.conv_block(out_nc, out_nc, kernel_size=4, stride=2, norm_type=norm_type, \
-                act_type=act_type, mode=mode))
+                    act_type=act_type, mode=mode))
             cur_nc = out_nc
             cur_size //= 2
 
@@ -370,10 +378,9 @@ class Discriminator_VGG_128_fea(nn.Module):
 
     #TODO: modify to a listening dictionary like VGG_Model(), can select what maps to use
     def forward(self, x, return_maps=False):
-        feature_maps = []
         # x = self.features(x)
         x = self.conv0(x)
-        feature_maps.append(x)
+        feature_maps = [x]
         x = self.conv1(x)
         feature_maps.append(x)
         x = self.conv2(x)
@@ -395,47 +402,53 @@ class Discriminator_VGG_128_fea(nn.Module):
 
         x = x.view(x.size(0), -1)
         x = self.classifier(x)
-        if return_maps:
-            return [x, feature_maps]
-        return x
+        return [x, feature_maps] if return_maps else x
 
 
 class Discriminator_VGG_fea(nn.Module):
     def __init__(self, size, in_nc, base_nf, norm_type='batch', act_type='leakyrelu', mode='CNA', convtype='Conv2D', \
-         arch='ESRGAN', spectral_norm=False, self_attention = False, max_pool=False, poolsize = 4):
+             arch='ESRGAN', spectral_norm=False, self_attention = False, max_pool=False, poolsize = 4):
         super(Discriminator_VGG_fea, self).__init__()
         # features
         # hxw, c
         # 128, 64
-        
+
         # Self-Attention configuration
         '''#TODO
         self.self_attention = self_attention
         self.max_pool = max_pool
         self.poolsize = poolsize
         '''
-        
+
         # Remove BatchNorm2d if using spectral_norm
         if spectral_norm:
             norm_type = None
 
-        self.conv_blocks = []
-        self.conv_blocks.append(B.conv_block(in_nc, base_nf, kernel_size=3, norm_type=None, \
-            act_type=act_type, mode=mode, spectral_norm=spectral_norm))
+        self.conv_blocks = [
+            B.conv_block(
+                in_nc,
+                base_nf,
+                kernel_size=3,
+                norm_type=None,
+                act_type=act_type,
+                mode=mode,
+                spectral_norm=spectral_norm,
+            )
+        ]
         self.conv_blocks.append(B.conv_block(base_nf, base_nf, kernel_size=4, stride=2, norm_type=norm_type, \
-            act_type=act_type, mode=mode, spectral_norm=spectral_norm))
+                act_type=act_type, mode=mode, spectral_norm=spectral_norm))
 
         cur_size = size // 2
         cur_nc = base_nf
         while cur_size > 4:
             out_nc = cur_nc * 2 if cur_nc < 512 else cur_nc
             self.conv_blocks.append(B.conv_block(cur_nc, out_nc, kernel_size=3, stride=1, norm_type=norm_type, \
-                act_type=act_type, mode=mode, spectral_norm=spectral_norm))
+                    act_type=act_type, mode=mode, spectral_norm=spectral_norm))
             self.conv_blocks.append(B.conv_block(out_nc, out_nc, kernel_size=4, stride=2, norm_type=norm_type, \
-                act_type=act_type, mode=mode, spectral_norm=spectral_norm))
+                    act_type=act_type, mode=mode, spectral_norm=spectral_norm))
             cur_nc = out_nc
             cur_size //= 2
-        
+
         '''#TODO
         if self.self_attention:
             self.FSA = SelfAttentionBlock(in_dim = base_nf*4, max_pool=self.max_pool, poolsize = self.poolsize, spectral_norm=spectral_norm)
@@ -461,12 +474,10 @@ class Discriminator_VGG_fea(nn.Module):
             conv = conv.to(device)
             x = conv(x)
             feature_maps.append(x)
-        
+
         x = x.view(x.size(0), -1)
         x = self.classifier(x)
-        if return_maps:
-            return [x, feature_maps]
-        return x
+        return [x, feature_maps] if return_maps else x
 
 
 class NLayerDiscriminator(nn.Module):
@@ -553,13 +564,13 @@ class NLayerDiscriminator(nn.Module):
         else:
             # linear vector classification output
             sequence += [[B.Mean([1, 2]), nn.Linear(ndf * nf_mult, 1)]]
-        
+
         if use_sigmoid:
             sequence += [[nn.Sigmoid()]]
 
         if get_feats:
             for n in range(len(sequence)):
-                setattr(self, 'model'+str(n), nn.Sequential(*sequence[n]))
+                setattr(self, f'model{str(n)}', nn.Sequential(*sequence[n]))
         else:
             sequence_stream = []
             for n in range(len(sequence)):
@@ -570,11 +581,9 @@ class NLayerDiscriminator(nn.Module):
         if self.get_feats:
             res = [x]
             for n in range(self.n_layers+2):
-                model = getattr(self, 'model'+str(n))
+                model = getattr(self, f'model{str(n)}')
                 res.append(model(res[-1]))
-            if return_maps:
-                return [res[-1], res[1:-1]]
-            return res[-1]
+            return [res[-1], res[1:-1]] if return_maps else res[-1]
         # Standard forward.
         return self.model(x)
 
@@ -601,17 +610,16 @@ class MultiscaleDiscriminator(nn.Module):
         self.num_D = num_D
         self.n_layers = n_layers
         self.get_feats = get_feats
-     
+
         for i in range(num_D):
             netD = NLayerDiscriminator(
                 input_nc, ndf, n_layers, norm_layer, use_sigmoid,
                 get_feats)
             if get_feats:
                 for j in range(n_layers+2):
-                    setattr(self, 'scale'+str(i)+'_layer'+str(j),
-                        getattr(netD, 'model'+str(j)))
+                    setattr(self, f'scale{str(i)}_layer{str(j)}', getattr(netD, f'model{str(j)}'))
             else:
-                setattr(self, 'layer'+str(i), netD.model)
+                setattr(self, f'layer{str(i)}', netD.model)
 
         self.downsample = nn.AvgPool2d(
             3, stride=2, padding=[1, 1], count_include_pad=False)
@@ -619,11 +627,8 @@ class MultiscaleDiscriminator(nn.Module):
     def singleD_forward(self, model, x, return_maps=False):
         if self.get_feats:
             result = [x]
-            for i in range(len(model)):
-                result.append(model[i](result[-1]))
-            if return_maps:
-                return [result[-1], result[1:-1]]
-            return [result[-1]]
+            result.extend(model[i](result[-1]) for i in range(len(model)))
+            return [result[-1], result[1:-1]] if return_maps else [result[-1]]
         return [model(x)]
 
     def forward(self, x, return_maps=False):
@@ -632,9 +637,12 @@ class MultiscaleDiscriminator(nn.Module):
         input_downsampled = x
         for i in range(num_D):
             if self.get_feats:
-                model = [getattr(self, 'scale'+str(num_D-1-i)+'_layer'+str(j)) for j in range(self.n_layers+2)]
+                model = [
+                    getattr(self, f'scale{str(num_D - 1 - i)}_layer{str(j)}')
+                    for j in range(self.n_layers + 2)
+                ]
             else:
-                model = getattr(self, 'layer'+str(num_D-1-i))
+                model = getattr(self, f'layer{str(num_D - 1 - i)}')
             result.append(
                 self.singleD_forward(model, input_downsampled, return_maps))
             if i != (num_D-1):
@@ -642,9 +650,9 @@ class MultiscaleDiscriminator(nn.Module):
         if return_maps:
             last_res = []
             feat_maps = []
-            for i in range(len(result)):
-                last_res.append(result[i][0])
-                feat_maps.extend(result[i][1])
+            for item in result:
+                last_res.append(item[0])
+                feat_maps.extend(item[1])
             return [last_res, feat_maps]
         return result
 

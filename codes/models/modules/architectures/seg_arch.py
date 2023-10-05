@@ -35,19 +35,14 @@ class OutdoorSceneSeg(nn.Module):
         conv1_2 = B.conv_block(64, 64, 3, 1, 1, 1, False, 'zero', 'batch')
         conv1_3 = B.conv_block(64, 128, 3, 1, 1, 1, False, 'zero', 'batch')
         max_pool = nn.MaxPool2d(3, stride=2, padding=0, ceil_mode=True)  #  /2
-        blocks = [conv1_1, conv1_2, conv1_3, max_pool]
-        # conv2, 3 blocks
-        blocks.append(Res131(128, 64, 256))
-        for i in range(2):
-            blocks.append(Res131(256, 64, 256))
+        blocks = [conv1_1, conv1_2, conv1_3, max_pool, Res131(128, 64, 256)]
+        blocks.extend(Res131(256, 64, 256) for _ in range(2))
         # conv3, 4 blocks
         blocks.append(Res131(256, 128, 512, 1, 2))  #  /2
-        for i in range(3):
-            blocks.append(Res131(512, 128, 512))
+        blocks.extend(Res131(512, 128, 512) for _ in range(3))
         # conv4, 23 blocks
         blocks.append(Res131(512, 256, 1024, 2))
-        for i in range(22):
-            blocks.append(Res131(1024, 256, 1024, 2))
+        blocks.extend(Res131(1024, 256, 1024, 2) for _ in range(22))
         # conv5
         blocks.append(Res131(1024, 512, 2048, 4))
         blocks.append(Res131(2048, 512, 2048, 4))

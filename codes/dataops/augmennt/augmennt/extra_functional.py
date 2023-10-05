@@ -20,10 +20,9 @@ from .camera import (unprocess, random_noise_levels, add_noise, process,
     make_img_even)
 
 
-if float(cv2.__version__[:3]) >= 3.4 and float(cv2.__version__[4:]) >= 2:
-    warppolar_available = True
-else:
-    warppolar_available = False
+warppolar_available = (
+    float(cv2.__version__[:3]) >= 3.4 and float(cv2.__version__[4:]) >= 2
+)
 
 
 ## Below are new augmentations not available in the original ~torchvision.transforms
@@ -160,27 +159,22 @@ def noise_gaussian(img:np.ndarray, mean:float=0.0,
         if len(std) != c:
             std = [std[0]] * c
 
-    if gtype in ('bw', 'gray'):
+    if gtype in {'bw', 'gray'}:
         if mc:
             std = std[0]
         noise = np.random.normal(
             loc=mean, scale=std, size=(h,w)).astype(np.float32)
         noise = np.expand_dims(noise, axis=2).repeat(c, axis=2)
+    elif mc:
+        noise = np.zeros_like(img, dtype=np.float32)
+        for ch, sig in enumerate(std):
+            noise[..., ch] = np.random.normal(
+                loc=mean, scale=sig, size=(h,w))
     else:
-        if mc:
-            noise = np.zeros_like(img, dtype=np.float32)
-            for ch, sig in enumerate(std):
-                noise[..., ch] = np.random.normal(
-                    loc=mean, scale=sig, size=(h,w))
-        else:
-            noise = np.random.normal(
-                loc=mean, scale=std, size=(h,w,c)).astype(np.float32)
+        noise = np.random.normal(
+            loc=mean, scale=std, size=(h,w,c)).astype(np.float32)
 
-    if mode == 'speckle':
-        noisy = (1 + noise) * img
-    else:
-        noisy = img + noise
-
+    noisy = (1 + noise) * img if mode == 'speckle' else img + noise
     if rounds:
         noisy = round_up(noisy)
 
@@ -209,7 +203,7 @@ def noise_poisson(img: np.ndarray, scale:float=1.0,
     noisy = np.clip(np.random.poisson(img * vals) / float(vals), 0, 1)
     if scale != 1.0 or gtype != 'color':
         noise = noisy - img
-        if gtype in ('bw', 'gray'):
+        if gtype in {'bw', 'gray'}:
             noise = cv2.cvtColor(noise, cv2.COLOR_BGR2GRAY)
             noise = np.repeat(noise[:, :, np.newaxis], 3, axis=2)
         noisy = noise * scale
@@ -263,7 +257,7 @@ def compression(img:np.ndarray, quality:int=90,
     Returns:
         numpy ndarray: version of the image with compression.
     """
-    if compression_type in [".jpeg", ".jpg"]:
+    if compression_type in {".jpeg", ".jpg"}:
         quality_flag = cv2.IMWRITE_JPEG_QUALITY
     elif compression_type == ".webp":
         quality_flag = cv2.IMWRITE_WEBP_QUALITY
@@ -276,9 +270,7 @@ def compression(img:np.ndarray, quality:int=90,
 
     if input_dtype == np.float32:
         warnings.warn(
-            "Image compression augmentation "
-            "is most effective with uint8 inputs, "
-            "{} is used as input.".format(input_dtype),
+            f"Image compression augmentation is most effective with uint8 inputs, {input_dtype} is used as input.",
             UserWarning,
         )
         img = from_float(img, dtype=np.dtype("uint8"))
@@ -328,11 +320,11 @@ def average_blur(img: np.ndarray, kernel_size: int = 3):
     Returns:
         numpy ndarray: version of the image with blur applied.
     """
-    h, w = img.shape[0:2]
+    h, w = img.shape[:2]
 
     # Get a valid kernel size
     kernel_size = valid_kernel(h, w, kernel_size)
-    
+
     # blurred = cv2.blur(img, (kernel_size,kernel_size))
     blur_fn = _maybe_process_in_chunks(cv2.blur, ksize=(kernel_size,kernel_size))
     return blur_fn(img)
@@ -348,11 +340,11 @@ def box_blur(img: np.ndarray, kernel_size: int = 3):
     Returns:
         numpy ndarray: version of the image with blur applied.
     """
-    h, w = img.shape[0:2]
+    h, w = img.shape[:2]
 
     # Get a valid kernel size
     kernel_size = valid_kernel(h, w, kernel_size)
-    
+
     # blurred = cv2.boxFilter(img,ddepth=-1,ksize=(kernel_size,kernel_size))
     blur_fn = _maybe_process_in_chunks(cv2.boxFilter, ddepth=-1, ksize=(kernel_size,kernel_size))
     return blur_fn(img)
@@ -374,11 +366,11 @@ def gaussian_blur(img:np.ndarray, kernel_size:int = 3,
     if not sigmaY:
         sigmaY = sigmaX
 
-    h, w = img.shape[0:2]
+    h, w = img.shape[:2]
 
     # Get a valid kernel size
     kernel_size = valid_kernel(h, w, kernel_size)
-    
+
     # blurred = cv2.GaussianBlur(img,(kernel_size,kernel_size),0)
     blur_fn = _maybe_process_in_chunks(
         cv2.GaussianBlur,
@@ -398,11 +390,11 @@ def median_blur(img: np.ndarray, kernel_size: int = 3):
     Returns:
         numpy ndarray: version of the image with blur applied.
     """
-    h, w = img.shape[0:2]
+    h, w = img.shape[:2]
 
     # Get a valid kernel size
     kernel_size = valid_kernel(h, w, kernel_size)
-    
+
     blur_fn = _maybe_process_in_chunks(cv2.medianBlur, ksize=kernel_size)
     return blur_fn(img)
 
@@ -440,14 +432,14 @@ def bilateral_blur(img: np.ndarray, kernel_size: int = 3, sigmaColor: int = 5, s
     Returns:
         numpy ndarray: version of the image with blur applied.
     """
-    h, w = img.shape[0:2]
+    h, w = img.shape[:2]
 
     #Get a valid kernel size
     kernel_size = valid_kernel(h,w,kernel_size)
     #Bilateral filter doesn't appear to work with kernel_size > 9, check
     # if kernel_size > 9:
     #     kernel_size = 9
-    
+
     # blurred = cv2.bilateralFilter(img,kernel_size,sigmaColor,sigmaSpace)
     blur_fn = _maybe_process_in_chunks(
         cv2.bilateralFilter,
@@ -553,7 +545,7 @@ def apply_kmeans(Z, K=8):
     Defines criteria, uses number of clusters (K) and
     applies kmeans() algorithm
     """
-    K = len(Z) if K > len(Z) else K
+    K = min(K, len(Z))
     criteria = (
         cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
     ret, labels, centroids = cv2.kmeans(
@@ -614,15 +606,15 @@ def noise_dither_bayer(img:np.ndarray) -> np.ndarray:
     # dithering pattern is apparent, but the quantized (color palette) is not there. 
     # Still enough for models to learn dedithering
     bayer_matrix = np.array([[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]) #/256 #4x4 Bayer matrix
-    
+
     bayer_matrix = bayer_matrix*16
-    
+
     red = img[:,:,2] #/255.
     green = img[:,:,1] #/255.
     blue = img[:,:,0] #/255.
-    
+
     img_split = np.zeros((img.shape[0], img.shape[1], 3), dtype = imgtype)
-    
+
     for values, color, channel in zip((red, green, blue), ('red', 'green', 'blue'), (2,1,0)):
         for i in range(0, values.shape[0]):
             for j in range(0, values.shape[1]):
@@ -630,9 +622,7 @@ def noise_dither_bayer(img:np.ndarray) -> np.ndarray:
                 y = np.mod(j, 4)
                 if values[i, j] > bayer_matrix[x, y]:
                     img_split[i,j,channel] = 255 #1
-    dithered = img_split #*255.
-    
-    return dithered
+    return img_split
 
 @preserve_type
 def noise_dither_fs(img:np.ndarray, samplingF=1) -> np.ndarray:
@@ -723,12 +713,9 @@ def noise_dither_avg_bw(img:np.ndarray) -> np.ndarray:
     """
     if len(img.shape) > 2 and img.shape[2] != 1:
         img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    
-    threshold = np.average(img)
-    re_aver = np.where(img < threshold, 0, 255).astype(np.uint8)
-    #re_aver = cv2.cvtColor(re_aver,cv2.COLOR_GRAY2RGB)
 
-    return re_aver
+    threshold = np.average(img)
+    return np.where(img < threshold, 0, 255).astype(np.uint8)
 
 def noise_dither_bayer_bw(img:np.ndarray) -> np.ndarray:
     """
@@ -760,9 +747,7 @@ def noise_dither_bin_bw(img:np.ndarray) -> np.ndarray:
     if len(img.shape) > 2 and img.shape[2] != 1:
         img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
-    img_bw = np.where(img < 127, 0, 255).astype(np.uint8)
-    #img_bw = cv2.cvtColor(img_bw,cv2.COLOR_GRAY2RGB)
-    return img_bw
+    return np.where(img < 127, 0, 255).astype(np.uint8)
 
 
 def noise_dither_fs_bw(img:np.ndarray, samplingF = 1) -> np.ndarray:
@@ -805,11 +790,7 @@ def noise_dither_random_bw(img:np.ndarray) -> np.ndarray:
 
     for i in range(0, size[0]):
         for j in range(0, size[1]):
-            if img[i, j] < np.random.uniform(0, 256):
-                re_rand[i, j] = 0
-            else:
-                re_rand[i, j] = 255
-
+            re_rand[i, j] = 0 if img[i, j] < np.random.uniform(0, 256) else 255
     #re_rand = cv2.cvtColor(re_rand,cv2.COLOR_GRAY2RGB)
     return re_rand
 
@@ -1197,8 +1178,8 @@ def add_fringes(im:np.ndarray, pixels:int = 1) -> np.ndarray:
     channels = split_channels(im)
     b, g, r = channels[0], channels[1], channels[2]
 
-    rheight, rwidth = r.shape[0:2]
-    bheight, bwidth = b.shape[0:2]
+    rheight, rwidth = r.shape[:2]
+    bheight, bwidth = b.shape[:2]
 
     # b = np.pad(b, ((0, 0), (pixels, 0)), mode='constant',  constant_values=3)
     # r = np.pad(r, ((0, 0), (0, pixels)), mode='constant',  constant_values=3)
@@ -1229,14 +1210,14 @@ def blend_images(im:np.ndarray, og_im:np.ndarray,
              round((1 + 0.018 * strength) * og_im.shape[0])),
             interpolation=cv2.INTER_CUBIC)
 
-    og_im = center_crop(og_im, im.shape[0:2])
+    og_im = center_crop(og_im, im.shape[:2])
 
     beta = 1.0 - alpha
     return cv2.addWeighted(og_im, alpha, im, beta, 0)
 
 
 def get_polar_dimensions(image:np.ndarray):
-    h, w = image.shape[0:2]
+    h, w = image.shape[:2]
     center = (w//2, h//2)
     radius = math.ceil(np.sqrt((h**2.0 + w**2.0)) / 2.0)  # halfdiag
     perimeter = 2 * (w + h - 2)
@@ -1317,9 +1298,9 @@ def add_chromatic(im:np.ndarray, strength:float=1,
 
     #TODO: check
     # center and merge the channels
-    sb = bfinal.shape[0:2]
-    sg = gfinal.shape[0:2]
-    sr = rfinal.shape[0:2]
+    sb = bfinal.shape[:2]
+    sg = gfinal.shape[:2]
+    sr = rfinal.shape[:2]
     oh = min(sb[0], sg[0], sr[0])
     ow = min(sb[1], sg[1], sr[1])
     bfinal = center_crop(bfinal, (ow, oh))
@@ -1339,14 +1320,12 @@ def camera_noise(img:np.ndarray, xyz_arr:str='D50',
     """
     input_dtype = img.dtype
     needs_float = False
-    h, w = img.shape[0:2]
+    h, w = img.shape[:2]
     img = make_img_even(img)
 
     if input_dtype == np.float32:
         warnings.warn(
-            "Camera noise augmentation "
-            "expects uint8 inputs, "
-            "{} was used as input.".format(input_dtype),
+            f"Camera noise augmentation expects uint8 inputs, {input_dtype} was used as input.",
             UserWarning,
         )
         img = from_float(img, dtype=np.dtype("uint8"))

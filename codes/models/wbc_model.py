@@ -50,17 +50,29 @@ def get_sp_transform(train_opt:dict, znorm:bool=True):
     algo = train_opt.get('sp_algo', 'sk_felzenszwalb')
     gamma_range = train_opt.get('sp_gamma_range', (100, 120))
 
-    superpixel_fn = transforms.Compose([
-        transforms.Lambda(lambda img: tensor2np(img, rgb2bgr=True,
-                            denormalize=znorm, remove_batch=False)),
-        transforms.Superpixels(
-            p_replace=1, n_segments=n_segments, algo=algo,
-            reduction=reduction, max_size=max_size, p=1),
-        transforms.RandomGamma(gamma_range=gamma_range, gain=1, p=1),
-        transforms.Lambda(lambda img: np2tensor(img, bgr2rgb=True,
-                            normalize=znorm, add_batch=False))
-    ])
-    return superpixel_fn
+    return transforms.Compose(
+        [
+            transforms.Lambda(
+                lambda img: tensor2np(
+                    img, rgb2bgr=True, denormalize=znorm, remove_batch=False
+                )
+            ),
+            transforms.Superpixels(
+                p_replace=1,
+                n_segments=n_segments,
+                algo=algo,
+                reduction=reduction,
+                max_size=max_size,
+                p=1,
+            ),
+            transforms.RandomGamma(gamma_range=gamma_range, gain=1, p=1),
+            transforms.Lambda(
+                lambda img: np2tensor(
+                    img, bgr2rgb=True, normalize=znorm, add_batch=False
+                )
+            ),
+        ]
+    )
 
 
 class WBCModel(BaseModel):

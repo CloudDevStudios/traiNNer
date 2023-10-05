@@ -52,22 +52,14 @@ class SRFlowNet(nn.Module):
         if not reverse:
             return self.normal_flow(gt, lr, epses=epses, lr_enc=lr_enc, add_gt_noise=add_gt_noise, step=step,
                                     y_onehot=y_label)
-        else:
-            # assert lr.shape[0] == 1
-            assert lr.shape[1] == 3
-            # assert lr.shape[2] == 20
-            # assert lr.shape[3] == 20
-            # assert z.shape[0] == 1
-            # assert z.shape[1] == 3 * 8 * 8
-            # assert z.shape[2] == 20
-            # assert z.shape[3] == 20
-            if reverse_with_grad:
-                return self.reverse_flow(lr, z, y_onehot=y_label, eps_std=eps_std, epses=epses, lr_enc=lr_enc,
-                                         add_gt_noise=add_gt_noise)
-            else:
-                with torch.no_grad():
-                    return self.reverse_flow(lr, z, y_onehot=y_label, eps_std=eps_std, epses=epses, lr_enc=lr_enc,
-                                             add_gt_noise=add_gt_noise)
+        # assert lr.shape[0] == 1
+        assert lr.shape[1] == 3
+        if reverse_with_grad:
+            return self.reverse_flow(lr, z, y_onehot=y_label, eps_std=eps_std, epses=epses, lr_enc=lr_enc,
+                                     add_gt_noise=add_gt_noise)
+        with torch.no_grad():
+            return self.reverse_flow(lr, z, y_onehot=y_label, eps_std=eps_std, epses=epses, lr_enc=lr_enc,
+                                     add_gt_noise=add_gt_noise)
 
     def normal_flow(self, gt, lr, y_onehot=None, epses=None, lr_enc=None, add_gt_noise=True, step=None):
         if lr_enc is None:
@@ -79,9 +71,9 @@ class SRFlowNet(nn.Module):
         z = gt
 
         if add_gt_noise:
-            # Setup
-            noiseQuant = opt_get(self.opt, ['network_G', 'flow', 'augmentation', 'noiseQuant'], True)
-            if noiseQuant:
+            if noiseQuant := opt_get(
+                self.opt, ['network_G', 'flow', 'augmentation', 'noiseQuant'], True
+            ):
                 z = z + ((torch.rand(z.shape, device=z.device) - 0.5) / self.quant)
             logdet = logdet + float(-np.log(self.quant) * pixels)
 
@@ -91,24 +83,18 @@ class SRFlowNet(nn.Module):
 
         objective = logdet.clone()
 
-        if isinstance(epses, (list, tuple)):
-            z = epses[-1]
-        else:
-            z = epses
-
+        z = epses[-1] if isinstance(epses, (list, tuple)) else epses
         objective = objective + flow.GaussianDiag.logp(None, None, z)
 
         nll = (-objective) / float(np.log(2.) * pixels)
 
-        if isinstance(epses, list):
-            return epses, nll, logdet
-        return z, nll, logdet
+        return (epses, nll, logdet) if isinstance(epses, list) else (z, nll, logdet)
 
     def rrdbPreprocessing(self, lr):
         rrdbResults = self.RRDB(lr, get_steps=True)
         block_idxs = opt_get(self.opt, ['network_G', 'flow', 'stackRRDB', 'blocks']) or []
         if len(block_idxs) > 0:
-            concat = torch.cat([rrdbResults["block_{}".format(idx)] for idx in block_idxs], dim=1)
+            concat = torch.cat([rrdbResults[f"block_{idx}"] for idx in block_idxs], dim=1)
 
             if opt_get(self.opt, ['network_G', 'flow', 'stackRRDB', 'concat']) or False:
                 keys = ['last_lr_fea', 'fea_up1', 'fea_up2', 'fea_up4']

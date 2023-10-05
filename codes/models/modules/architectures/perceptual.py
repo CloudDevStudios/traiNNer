@@ -66,7 +66,7 @@ def insert_bn(names:list) -> list:
         names_bn.append(name)
         if 'conv' in name:
             position = name.replace('conv', '')
-            names_bn.append('bn' + position)
+            names_bn.append(f'bn{position}')
     return names_bn
 
 
@@ -242,8 +242,7 @@ class ResNet101FeatureExtractor(nn.Module):
         if self.use_input_norm:
             x = (x - self.mean) / self.std
 
-        output = self.features(x)
-        return output
+        return self.features(x)
 
 
 class MINCNet(nn.Module):
@@ -304,7 +303,6 @@ class MINCFeatureExtractor(nn.Module):
             v.requires_grad = False
 
     def forward(self, x):
-        output = self.features(x)
-        return output
+        return self.features(x)
 
 

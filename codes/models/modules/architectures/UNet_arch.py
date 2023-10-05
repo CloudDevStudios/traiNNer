@@ -42,18 +42,18 @@ class UnetGenerator(nn.Module):
             raise NameError("Unknown norm layer")
 
         # construct unet structure
-        
+
         ## add the innermost layer
         unet_block = UnetSkipConnectionBlock(
             ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, 
             innermost=True, upsample_mode=upsample_mode)
-        
+
         ## add intermediate layers with ngf * 8 filters
-        for i in range(num_downs - 5):
+        for _ in range(num_downs - 5):
             unet_block = UnetSkipConnectionBlock(
                 ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, 
                 norm_layer=norm_layer, use_dropout=use_dropout, upsample_mode=upsample_mode)
-        
+
         ## gradually reduce the number of filters from ngf * 8 to ngf
         unet_block = UnetSkipConnectionBlock(
             ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, upsample_mode=upsample_mode)
@@ -61,7 +61,7 @@ class UnetGenerator(nn.Module):
             ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer, upsample_mode=upsample_mode)
         unet_block = UnetSkipConnectionBlock(
             ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer, upsample_mode=upsample_mode)
-        
+
         ## add the outermost layer
         self.model = UnetSkipConnectionBlock(
             output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, 
@@ -155,10 +155,7 @@ class UnetSkipConnectionBlock(nn.Module):
         self.model = nn.Sequential(*model)
 
     def forward(self, x):
-        if self.outermost:
-            return self.model(x)
-        else:   # add skip connections
-            return torch.cat([x, self.model(x)], 1)
+        return self.model(x) if self.outermost else torch.cat([x, self.model(x)], 1)
 
 
 ####################

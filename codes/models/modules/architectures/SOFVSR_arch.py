@@ -57,11 +57,11 @@ class SOFVSR(nn.Module):
         flow_L1 = []
         flow_L2 = []
         flow_L3 = []
-        input = []
-
-        for idx_frame in range(n_frames):
-            if idx_frame != idx_center:
-                input.append(torch.cat((x[:,idx_frame,:,:,:], x[:,idx_center,:,:,:]), 1))
+        input = [
+            torch.cat((x[:, idx_frame, :, :, :], x[:, idx_center, :, :, :]), 1)
+            for idx_frame in range(n_frames)
+            if idx_frame != idx_center
+        ]
         optical_flow_L1, optical_flow_L2, optical_flow_L3 = self.OFR(torch.cat(input, 0))
 
         optical_flow_L1 = optical_flow_L1.view(-1, b, 2, h//2, w//2)
@@ -69,9 +69,7 @@ class SOFVSR(nn.Module):
         optical_flow_L3 = optical_flow_L3.view(-1, b, 2, h*self.scale, w*self.scale)
 
         # motion compensation
-        draft_cube = []
-        draft_cube.append(x[:, idx_center, :, :, :])
-
+        draft_cube = [x[:, idx_center, :, :, :]]
         for idx_frame in range(n_frames):
             if idx_frame == idx_center:
                 flow_L1.append([])
@@ -121,8 +119,7 @@ class OFRnet(nn.Module):
         )
 
         # SR part
-        SR = []
-        SR.append(CasResB(3, channels))
+        SR = [CasResB(3, channels)]
         if self.scale == 4:
             SR.append(nn.Conv2d(channels, 64 * 4, 1, 1, 0, bias=False))
             SR.append(nn.PixelShuffle(2)) #TODO
@@ -186,11 +183,7 @@ class OFRnet(nn.Module):
 class SRnet(nn.Module):
     def __init__(self, in_nc, scale, channels, n_frames, img_ch):
         super(SRnet, self).__init__()
-        body = []
-        # scale ** 2 -> due to the subsampling of the SR flow 
-        # Note: uncertain about the "+ img_ch" originally it was 1 for 1 ch images, works with 3 for 3 channel, check
-        # body.append(nn.Conv2d(img_ch * scale ** 2 * (n_frames-1) + img_ch, channels, 3, 1, 1, bias=False))
-        body.append(nn.Conv2d(in_nc, channels, 3, 1, 1, bias=False))
+        body = [nn.Conv2d(in_nc, channels, 3, 1, 1, bias=False)]
         body.append(nn.LeakyReLU(0.1, inplace=True))
         body.append(CasResB(8, channels))
         if scale == 4:
@@ -217,8 +210,7 @@ class SRnet(nn.Module):
         self.body = nn.Sequential(*body)
 
     def __call__(self, x):
-        out = self.body(x)
-        return out
+        return self.body(x)
 
 
 class ResB(nn.Module):
@@ -240,9 +232,7 @@ class ResB(nn.Module):
 class CasResB(nn.Module):
     def __init__(self, n_ResB, channels):
         super(CasResB, self).__init__()
-        body = []
-        for i in range(n_ResB):
-            body.append(ResB(channels))
+        body = [ResB(channels) for _ in range(n_ResB)]
         self.body = nn.Sequential(*body)
     def forward(self, x):
         return self.body(x)

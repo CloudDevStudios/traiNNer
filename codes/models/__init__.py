@@ -19,16 +19,17 @@ def find_model(model_name):
     ]
 
     lc_filenames = [x.lower() for x in model_filenames]
-    model_filename = "{}_model".format(model_name)
+    model_filename = f"{model_name}_model"
 
     if model_filename in lc_filenames:
-        model_filename = "models.{}".format(
-            model_filenames[lc_filenames.index(model_filename)])
+        model_filename = (
+            f"models.{model_filenames[lc_filenames.index(model_filename)]}"
+        )
 
     # import the model module
     modellib = importlib.import_module(f'{model_filename}')
     model = None
-    target_model_name = '{}model'.format(model_name.replace('_', ''))
+    target_model_name = f"{model_name.replace('_', '')}model"
 
     # dynamic instantiation
     for name, cls in modellib.__dict__.items():
@@ -64,11 +65,7 @@ def create_model(opt, step=0, verbose=True):
         model = 'SFTGAN_ACD'
 
     M = find_model(model)
-    if model == 'srflow':  # TODO: can standardize to make consistent in all cases
-        instance = M(opt, step)
-    else:
-        instance = M(opt)
-
+    instance = M(opt, step) if model == 'srflow' else M(opt)
     if verbose:
         # print("model [%s] was created" % type(instance).__name__)
         logger.info(f'Model [{instance.__class__.__name__:s}] created.')

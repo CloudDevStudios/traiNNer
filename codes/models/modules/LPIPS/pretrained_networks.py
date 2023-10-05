@@ -49,9 +49,7 @@ class squeezenet(torch.nn.Module):
         h = self.slice7(h)
         h_relu7 = h
         vgg_outputs = namedtuple("SqueezeOutputs", ['relu1','relu2','relu3','relu4','relu5','relu6','relu7'])
-        out = vgg_outputs(h_relu1,h_relu2,h_relu3,h_relu4,h_relu5,h_relu6,h_relu7)
-
-        return out
+        return vgg_outputs(h_relu1,h_relu2,h_relu3,h_relu4,h_relu5,h_relu6,h_relu7)
 
 
 class alexnet(torch.nn.Module):
@@ -90,9 +88,7 @@ class alexnet(torch.nn.Module):
         h = self.slice5(h)
         h_relu5 = h
         alexnet_outputs = namedtuple("AlexnetOutputs", ['relu1', 'relu2', 'relu3', 'relu4', 'relu5'])
-        out = alexnet_outputs(h_relu1, h_relu2, h_relu3, h_relu4, h_relu5)
-
-        return out
+        return alexnet_outputs(h_relu1, h_relu2, h_relu3, h_relu4, h_relu5)
 
 class vgg16(torch.nn.Module):
     def __init__(self, requires_grad=False, pretrained=True):
@@ -130,9 +126,7 @@ class vgg16(torch.nn.Module):
         h = self.slice5(h)
         h_relu5_3 = h
         vgg_outputs = namedtuple("VggOutputs", ['relu1_2', 'relu2_2', 'relu3_3', 'relu4_3', 'relu5_3'])
-        out = vgg_outputs(h_relu1_2, h_relu2_2, h_relu3_3, h_relu4_3, h_relu5_3)
-
-        return out
+        return vgg_outputs(h_relu1_2, h_relu2_2, h_relu3_3, h_relu4_3, h_relu5_3)
 
 
 
@@ -176,6 +170,4 @@ class resnet(torch.nn.Module):
         h_conv5 = h
 
         outputs = namedtuple("Outputs", ['relu1','conv2','conv3','conv4','conv5'])
-        out = outputs(h_relu1, h_conv2, h_conv3, h_conv4, h_conv5)
-
-        return out
+        return outputs(h_relu1, h_conv2, h_conv3, h_conv4, h_conv5)

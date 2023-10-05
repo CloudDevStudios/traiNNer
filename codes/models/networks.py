@@ -162,10 +162,11 @@ def get_network(opt, step=0, selector=None):
     elif kind == 'srflow_net':
         from models.modules.architectures import SRFlowNet_arch
         net = SRFlowNet_arch.SRFlowNet
-        n_opt_pass = {}
-        for kop, vop in opt_net_pass.items():
-            if kop in ['in_nc', 'out_nc', 'nf', 'nb', 'scale', 'K']:
-                n_opt_pass[kop] = vop
+        n_opt_pass = {
+            kop: vop
+            for kop, vop in opt_net_pass.items()
+            if kop in ['in_nc', 'out_nc', 'nf', 'nb', 'scale', 'K']
+        }
         n_opt_pass['opt'] = opt
         n_opt_pass['step'] = step
         opt_net_pass = n_opt_pass
@@ -184,7 +185,6 @@ def get_network(opt, step=0, selector=None):
     elif kind == 'edvr_net':
         from models.modules.architectures import EDVR_arch
         net = EDVR_arch.EDVR
-    # discriminators
     elif kind == 'dis_acd':  # sft-gan, Auxiliary Classifier Discriminator
         from models.modules.architectures import sft_arch
         net = sft_arch.ACD_VGG_BN_96
@@ -321,9 +321,7 @@ def define_F(opt):
     gpu_ids = opt['gpu_ids']
     z_norm = opt['datasets']['train'].get('znorm', False)
 
-    # TODO: move version validation to defaults.py
-    perc_opts = opt['train'].get("perceptual_opt")
-    if perc_opts:
+    if perc_opts := opt['train'].get("perceptual_opt"):
         net = perc_opts.get('feature_network', 'vgg19')
         w_l_p = perc_opts.get('perceptual_layers', {'conv5_4': 1})
         w_l_s = perc_opts.get('style_layers', {})
@@ -404,21 +402,11 @@ def normal2mod(state_dict):
             logger.info('Converting and loading an RRDB model to modified RRDB')
         except:
             print('Converting and loading an RRDB model to modified RRDB')
-        crt_net = {}
-        items = []
-
-        for k, v in state_dict.items():
-            items.append(k)
-
-        # # directly copy
-        # for k, v in crt_net.items():
-        #     if k in state_dict and state_dict[k].size() == v.size():
-        #         crt_net[k] = state_dict[k]
-        #         items.remove(k)
-
-        crt_net['conv_first.weight'] = state_dict['model.0.weight']
-        crt_net['conv_first.bias'] = state_dict['model.0.bias']
-
+        items = [k for k, v in state_dict.items()]
+        crt_net = {
+            'conv_first.weight': state_dict['model.0.weight'],
+            'conv_first.bias': state_dict['model.0.bias'],
+        }
         for k in items.copy():
             if 'RDB' in k:
                 ori_k = k.replace('model.1.sub.', 'RRDB_trunk.')
@@ -449,14 +437,11 @@ def mod2normal(state_dict):
             logger.info('Converting and loading a modified RRDB model to normal RRDB')
         except:
             print('Converting and loading a modified RRDB model to normal RRDB')
-        crt_net = {}
-        items = []
-        for k, v in state_dict.items():
-            items.append(k)
-
-        crt_net['model.0.weight'] = state_dict['conv_first.weight']
-        crt_net['model.0.bias'] = state_dict['conv_first.bias']
-
+        items = [k for k, v in state_dict.items()]
+        crt_net = {
+            'model.0.weight': state_dict['conv_first.weight'],
+            'model.0.bias': state_dict['conv_first.bias'],
+        }
         for k in items.copy():
             if 'RDB' in k:
                 ori_k = k.replace('RRDB_trunk.', 'model.1.sub.')
@@ -485,7 +470,7 @@ def model_val(opt_net=None, state_dict=None, model_type=None):
         model = opt_get(opt_net, ['network_G', 'type']).lower()
         if model in ('rrdb_net', 'esrgan'): # tonormal
             return mod2normal(state_dict)
-        elif model == 'mrrdb_net' or model == 'srflow_net': # tomod
+        elif model in ['mrrdb_net', 'srflow_net']: # tomod
             return normal2mod(state_dict)
         return state_dict
     elif model_type == 'D':
@@ -503,11 +488,7 @@ def cem2normal(state_dict):
         except:
             print('Unwrapping the Generator model from CEM')
         crt_net = {}
-        items = []
-
-        for k, v in state_dict.items():
-            items.append(k)
-
+        items = [k for k, v in state_dict.items()]
         for k in items.copy():
             if 'generated_image_model.module.' in k:
                 ori_k = k.replace('generated_image_model.module.', '')

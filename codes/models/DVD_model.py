@@ -17,8 +17,9 @@ from .base_model import BaseModel, nullcast
 logger = logging.getLogger('base')
 
 
-load_amp = (hasattr(torch.cuda, "amp") and hasattr(torch.cuda.amp, "autocast"))
-if load_amp:
+if load_amp := (
+    hasattr(torch.cuda, "amp") and hasattr(torch.cuda.amp, "autocast")
+):
     from torch.cuda.amp import autocast, GradScaler
     logger.info('AMP library available')
 else:
@@ -117,8 +118,9 @@ class DVDModel(BaseModel):
                 self.swa_scheduler, self.swa_model = swa.get_swa(
                     self.optimizer_G, self.netG, swa_lr, swa_anneal_epochs, swa_anneal_strategy)
                 self.load_swa()  # load swa from resume state
-                logger.info('SWA enabled. Starting on iter: {}, lr: {}'.format(
-                    self.swa_start_iter, swa_lr))
+                logger.info(
+                    f'SWA enabled. Starting on iter: {self.swa_start_iter}, lr: {swa_lr}'
+                )
 
             """
             If using virtual batch
@@ -127,7 +129,7 @@ class DVDModel(BaseModel):
             virtual_batch = opt["datasets"]["train"].get(
                 'virtual_batch_size', None)
             self.virtual_batch = virtual_batch if virtual_batch \
-                >= batch_size else batch_size
+                    >= batch_size else batch_size
             self.accumulations = self.virtual_batch // batch_size
             self.optimizer_G.zero_grad()
             if self.cri_gan:
@@ -193,9 +195,6 @@ class DVDModel(BaseModel):
         ### Network forward, generate progressive frames
         with self.cast():
             self.fake_T, self.fake_B = self.netG(self.var_I)
-        #/with self.cast():
-
-        l_g_total = 0
         """
         Calculate and log losses
         """
@@ -203,6 +202,9 @@ class DVDModel(BaseModel):
         # training generator and discriminator
         # update generator (on its own if only training generator or alternatively if training GAN)
         if (self.cri_gan is not True) or (step % self.D_update_ratio == 0 and step > self.D_init_iters):
+            #/with self.cast():
+
+            l_g_total = 0
             with self.cast():  # Casts operations to mixed precision if enabled, else nullcontext
                 # regular losses
                 loss_results, self.log_dict = self.generatorlosses(
@@ -280,7 +282,7 @@ class DVDModel(BaseModel):
                 l_d_total, gan_logs = self.adversarial(
                     self.fake_T, self.var_ref_T, netD=self.netD,
                     stage='discriminator')
-                
+
                 l_d_total, gan_logs = self.adversarial(
                     self.fake_B, self.var_ref_B, netD=self.netD,
                     stage='discriminator')
@@ -313,11 +315,7 @@ class DVDModel(BaseModel):
     def test(self):
         self.netG.eval()
         with torch.no_grad():
-            if self.is_train:
-                self.fake_T, self.fake_B = self.netG(self.var_I)
-            else:
-                #self.fake_H = self.netG(self.var_L, isTest=True)
-                self.fake_T, self.fake_B = self.netG(self.var_I)
+            self.fake_T, self.fake_B = self.netG(self.var_I)
         self.netG.train()
 
     def get_current_log(self):

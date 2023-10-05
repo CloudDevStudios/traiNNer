@@ -27,12 +27,7 @@ def default_init_weights(module_list, scale=1, bias_fill=0, **kwargs):
         module_list = [module_list]
     for module in module_list:
         for m in module.modules():
-            if isinstance(m, nn.Conv2d):
-                init.kaiming_normal_(m.weight, **kwargs)
-                m.weight.data *= scale
-                if m.bias is not None:
-                    m.bias.data.fill_(bias_fill)
-            elif isinstance(m, nn.Linear):
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
                 init.kaiming_normal_(m.weight, **kwargs)
                 m.weight.data *= scale
                 if m.bias is not None:
@@ -309,7 +304,8 @@ class PredeblurModule(nn.Module):
         self.resblock_l2_1 = ResidualBlockNoBN(num_feat=num_feat)
         self.resblock_l2_2 = ResidualBlockNoBN(num_feat=num_feat)
         self.resblock_l1 = nn.ModuleList(
-            [ResidualBlockNoBN(num_feat=num_feat) for i in range(5)])
+            [ResidualBlockNoBN(num_feat=num_feat) for _ in range(5)]
+        )
 
         self.upsample = nn.Upsample(
             scale_factor=2, mode='bilinear', align_corners=False)
@@ -455,11 +451,13 @@ class EDVR(nn.Module):
     def forward(self, x):
         b, t, c, h, w = x.size()
         if self.hr_in:
-            assert h % (self.upscale ** 2) == 0 and w % (self.upscale ** 2) == 0, (
-                'The height and width must be multiple of {}.'.format(self.upscale ** 2))
+            assert (
+                h % (self.upscale**2) == 0 and w % (self.upscale**2) == 0
+            ), f'The height and width must be multiple of {self.upscale**2}.'
         else:
-            assert h % self.upscale == 0 and w % self.upscale == 0, (
-                'The height and width must be multiple of {}.'.format(self.upscale))
+            assert (
+                h % self.upscale == 0 and w % self.upscale == 0
+            ), f'The height and width must be multiple of {self.upscale}.'
 
         x_center = x[:, self.center_frame_idx, :, :, :].contiguous()
 
