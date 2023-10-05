@@ -189,10 +189,10 @@ class VSRModel(BaseModel):
 
         # calculate and log losses
         loss_results = []
-        l_g_total = 0
         # training generator and discriminator
         # update generator (on its own if only training generator or alternatively if training GAN)
         if (self.cri_gan is not True) or (step % self.D_update_ratio == 0 and step > self.D_init_iters):
+            l_g_total = 0
             with self.cast(): # Casts operations to mixed precision if enabled, else nullcontext
                 # get the central frame for SR losses
                 if isinstance(self.var_LR_bic, torch.Tensor) and isinstance(self.real_H_center, torch.Tensor):
@@ -298,15 +298,9 @@ class VSRModel(BaseModel):
         # TODO: test/val code
         self.netG.eval()
         with torch.no_grad():
-            if self.is_train:
-                self.fake_H = self.netG(self.var_L)
-                if len(self.fake_H) == 4:
-                    _, _, _, self.fake_H = self.fake_H
-            else:
-                # self.fake_H = self.netG(self.var_L, isTest=True)
-                self.fake_H = self.netG(self.var_L)
-                if len(self.fake_H) == 4:
-                    _, _, _, self.fake_H = self.fake_H
+            self.fake_H = self.netG(self.var_L)
+            if len(self.fake_H) == 4:
+                _, _, _, self.fake_H = self.fake_H
         self.netG.train()
 
     def get_current_log(self):

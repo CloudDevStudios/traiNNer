@@ -13,10 +13,10 @@ from dataops.imresize import resize as imresize
 
 # options
 test_img_folder_name = 'samples'  # image folder name
-test_img_folder = '../data/{}'.format(test_img_folder_name)  # HR images
-save_prob_path = '../data/{}_segprob'.format(test_img_folder_name)  # probability maps
-save_byteimg_path = '../data/{}_byteimg'.format(test_img_folder_name)  # segmentation annotations
-save_colorimg_path = '../data/{}_colorimg'.format(test_img_folder_name)  # segmentaion color results
+test_img_folder = f'../data/{test_img_folder_name}'
+save_prob_path = f'../data/{test_img_folder_name}_segprob'
+save_byteimg_path = f'../data/{test_img_folder_name}_byteimg'
+save_colorimg_path = f'../data/{test_img_folder_name}_colorimg'
 
 # make dirs
 util.mkdirs([save_prob_path, save_byteimg_path, save_colorimg_path])
@@ -68,12 +68,12 @@ for i, path in enumerate(glob.glob(os.path.join(test_img_folder, '*'))):
     output = seg_model(img).detach().float().cpu().squeeze_()
 
     # prob
-    torch.save(output, os.path.join(save_prob_path, filename + '_bic.pth'))  # 1x8xHxW
+    torch.save(output, os.path.join(save_prob_path, f'{filename}_bic.pth'))
 
     # byte img
     _, argmax = torch.max(output, 0)
     argmax = argmax.squeeze().byte()
-    cv2.imwrite(os.path.join(save_byteimg_path, filename + '.png'), argmax.numpy())
+    cv2.imwrite(os.path.join(save_byteimg_path, f'{filename}.png'), argmax.numpy())
 
     # color img
     im_h, im_w = argmax.size()
@@ -92,7 +92,7 @@ for i, path in enumerate(glob.glob(os.path.join(test_img_folder, '*'))):
 
     torchvision.utils.save_image(
         color,
-        os.path.join(save_colorimg_path, filename + '.png'),
+        os.path.join(save_colorimg_path, f'{filename}.png'),
         padding=0,
-        normalize=False
+        normalize=False,
     )

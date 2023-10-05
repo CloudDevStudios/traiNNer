@@ -70,7 +70,7 @@ def box(x):
       k(x) = |  otherwise:   0
     """
     fw, to_dtype, eps = get_img_types(x)
-    return to_dtype((-1 <= x) & (x < 0)) + to_dtype((0 <= x) & (x <= 1))
+    return to_dtype((x >= -1) & (x < 0)) + to_dtype((x >= 0) & (x <= 1))
     # return to_dtype((-0.5 <= x) & (x < 0.5)) * 1.0
 
 @kernel_width(2)
@@ -82,8 +82,9 @@ def linear(x):
       k(x) = |  otherwise:   0
     """
     fw, to_dtype, eps = get_img_types(x)
-    return ((x + 1) * to_dtype((-1 <= x) & (x < 0)) + (1 - x) *
-            to_dtype((0 <= x) & (x <= 1)))
+    return (x + 1) * to_dtype((x >= -1) & (x < 0)) + (1 - x) * to_dtype(
+        (x >= 0) & (x <= 1)
+    )
 
 def lanczos(x, a=3):
     """Lanczos kernel with radius 'a'.
@@ -552,17 +553,13 @@ def resize(img, scale_factors=None, out_shape=None,
                                        for dim in sorted(range(n_dims),
                                        key=lambda ind: scale_factors[ind])
                                        if scale_factors[dim] != 1.]
-    
+
     # unless the kernel support size is specified by the user, use the 
     # attribute of the interpolation method
     if kernel_width is None:
         kernel_width = kernel.kernel_width
-        
-    # when using pytorch, need to know what is the input tensor device
-    device = None
-    if fw is torch:
-        device = img.device
 
+    device = img.device if fw is torch else None
     # output begins identical to input img and changes with each iteration
     output = img
 
@@ -579,7 +576,7 @@ def resize(img, scale_factors=None, out_shape=None,
         # aggreagate
         output = apply_weights(output, field_of_view, weights, dim, n_dims,
                                fw)
-    
+
     output = fw_clip(output, fw) if clip else output
 
     return output
@@ -767,36 +764,21 @@ def get_weights(kernel, projected_grid, field_of_view):
 
 
 def fw_ceil(x, fw):
-    if fw is np:
-        return fw.int_(fw.ceil(x))
-    else:
-        return x.ceil().long()
+    return fw.int_(fw.ceil(x)) if fw is np else x.ceil().long()
 
 
 def fw_cat(x, fw):
-    if fw is np:
-        return fw.concatenate(x)
-    else:
-        return fw.cat(x)
+    return fw.concatenate(x) if fw is np else fw.cat(x)
 
 
 def fw_swapaxes(x, ax_1, ax_2, fw):
-    if fw is np:
-        return fw.swapaxes(x, ax_1, ax_2)
-    else:
-        return x.transpose(ax_1, ax_2)
+    return fw.swapaxes(x, ax_1, ax_2) if fw is np else x.transpose(ax_1, ax_2)
 
 def fw_set_device(x, device, fw):
-    if fw is np:
-        return x
-    else:
-        return x.to(device)
+    return x if fw is np else x.to(device)
 
 def fw_clip(x, fw):
-    if fw is np:
-        return fw.clip(x, 0, 1)
-    else:
-        return fw.clamp(x, 0, 1)
+    return fw.clip(x, 0, 1) if fw is np else fw.clamp(x, 0, 1)
 
 
 

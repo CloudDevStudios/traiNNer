@@ -27,13 +27,13 @@ class DVDDataset(data.Dataset):
         self.paths_progressive = get_image_paths('img', opt['dataroot_progressive'])
 
         if self.paths_in and self.paths_top and self.paths_bot:
-            assert len(self.paths_top) >= len(self.paths_in), \
-                'Top dataset contains fewer images than interlaced dataset  - {}, {}.'.format(
-                len(self.paths_top), len(self.paths_in))
-            
-            assert len(self.paths_bot) >= len(self.paths_in), \
-                'Bottom dataset contains fewer images than interlaced dataset  - {}, {}.'.format(
-                len(self.paths_bot), len(self.paths_in))
+            assert len(self.paths_top) >= len(
+                self.paths_in
+            ), f'Top dataset contains fewer images than interlaced dataset  - {len(self.paths_top)}, {len(self.paths_in)}.'
+
+            assert len(self.paths_bot) >= len(
+                self.paths_in
+            ), f'Bottom dataset contains fewer images than interlaced dataset  - {len(self.paths_bot)}, {len(self.paths_in)}.'
 
     def __getitem__(self, index):
         patch_size = self.opt['HR_size']

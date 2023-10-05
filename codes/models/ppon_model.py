@@ -141,11 +141,11 @@ class PPONModel(SRModel):
         eff_step = step/self.accumulations
 
         self.update_stage(eff_step)
-        if self.phase == 'p3':
-            losses_selector = self.p3_losses
-        elif self.phase == 'p2':
+        if self.phase == 'p2':
             losses_selector = self.p2_losses
-        else:  # 'p1'
+        elif self.phase == 'p3':
+            losses_selector = self.p3_losses
+        else:
             losses_selector = self.p1_losses
 
         # G
@@ -153,7 +153,6 @@ class PPONModel(SRModel):
         if self.cri_gan:
             self.requires_grad(self.netD, flag=False, net_type='D')
 
-        # switch ATG to train
         if self.atg:
             if eff_step > self.atg_start_iter:
                 self.switch_atg(True)
@@ -186,12 +185,12 @@ class PPONModel(SRModel):
 
         # calculate and log losses
         loss_results = []
-        # training generator and discriminator
-        # update generator (on its own if only training generator
-        # or alternatively if training GAN)
-        l_g_total = 0
         if (self.cri_gan is not True) or (eff_step % self.D_update_ratio == 0
             and eff_step > self.D_init_iters):
+            # training generator and discriminator
+            # update generator (on its own if only training generator
+            # or alternatively if training GAN)
+            l_g_total = 0
             with self.cast():
                 # casts operations to mixed precision if enabled, else nullcontext
                 # regular losses

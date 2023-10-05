@@ -43,10 +43,10 @@ class Upsample(nn.Module):
     
     def extra_repr(self):
         if self.scale_factor is not None:
-            info = 'scale_factor=' + str(self.scale_factor)
+            info = f'scale_factor={str(self.scale_factor)}'
         else:
-            info = 'size=' + str(self.size)
-        info += ', mode=' + self.mode
+            info = f'size={str(self.size)}'
+        info += f', mode={self.mode}'
         return info
 
 
@@ -105,13 +105,9 @@ class SelfAttentionBlock(nn.Module):
                 attention: B X N X N (N is Width*Height)
         """
         
-        if self.max_pool: #Downscale with Max Pool
-            x = self.pooled(input)
-        else:
-            x = input
-            
+        x = self.pooled(input) if self.max_pool else input
         batch_size, C, width, height = x.size()
-        
+
         N = width * height
         x = x.view(batch_size, -1, N)
         f = self.conv_f(x) #proj_query  = self.query_conv(x).permute(0,2,1) # B X CX(N)
@@ -120,27 +116,24 @@ class SelfAttentionBlock(nn.Module):
 
         s =  torch.bmm(f.permute(0,2,1),g) # energy, transpose check #energy =  torch.bmm(proj_query,proj_key) # transpose check
         attention = self.softmax(s) #beta # BX (N) X (N) #attention = self.softmax(energy) # BX (N) X (N) 
-        
+
         #v1
         #out = torch.bmm(h,attention) #out = torch.bmm(proj_value,attention.permute(0,2,1) )
         out = torch.bmm(h,attention.permute(0,2,1))
         #out = out.view((batch_size, C, width, height)) #out = out.view(batch_size,C,width,height)
         out = out.view(batch_size, C, width, height) 
-        
+
         # print("Out pre size: ", out.size()) # Output size
-        
+
         if self.max_pool: #Upscale to original size
             out = self.upsample_o(out)
-        
+
         # print("Out post size: ", out.size()) # Output size
         # print("Original size: ", input.size()) # Original size
-        
+
         out = self.gamma*out + input #Add original input
-        
-        if self.ret_attention:
-            return out, attention
-        else:
-            return out
+
+        return (out, attention) if self.ret_attention else out
 
 class ResidualBlock(nn.Module):
     """ Implementaion of Residual Block. Used in generator and discriminator networks. """
@@ -237,14 +230,14 @@ class ASRResNet(nn.Module):
         pixel_shuffle = None # Original tests used pixel_shuffle in UpscaleBlock
         in_nc = 3 #input number of channels
         nf = 64 #number of features / in_dim / in_feature_maps
-        
+
         if self.spectral_norm:
             block1 = [nn.utils.spectral_norm(nn.Conv2d(in_nc, nf, kernel_size=9, stride=1, padding=4))]
         else:
             block1 = [nn.Conv2d(in_nc, nf, kernel_size=9, stride=1, padding=4)]
         block1.append(nn.PReLU())
         self.block1 = nn.Sequential(*block1)
-        
+
         '''
         self.block1 = nn.Sequential(
             nn.Conv2d(in_nc, nf, kernel_size=9, stride=1, padding=4),
@@ -256,32 +249,31 @@ class ASRResNet(nn.Module):
         self.block4 = ResidualBlock(nf, spectral_norm = self.spectral_norm)
         self.block5 = ResidualBlock(nf, spectral_norm = self.spectral_norm)
         self.block6 = ResidualBlock(nf, spectral_norm = self.spectral_norm)
-        
+
         if self.spectral_norm:
             block7 = [nn.utils.spectral_norm(nn.Conv2d(nf, nf, kernel_size=3, stride=1, padding=1))]
         else:
             block7 = [nn.Conv2d(nf, nf, kernel_size=3, stride=1, padding=1)]
         block7.append(nn.BatchNorm2d(nf))
         self.block7 = nn.Sequential(*block7)
-        
+
         '''
         self.block7 = nn.Sequential(
             nn.Conv2d(nf, nf, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(nf)
         )
         '''
-        
+
         if self.self_attention:
             self.FSA = SelfAttentionBlock(in_dim = nf, max_pool=self.max_pool, poolsize = self.poolsize, spectral_norm=self.spectral_norm)
-        
+
         if pixel_shuffle: # Original tests
             block8 = [UpscaleBlock(in_channels=nf, upscale_factor=2) for _ in range(upsample_block_num)]
-            block8.append(nn.Conv2d(nf, in_nc, kernel_size=9, stride=1, padding=4))
-            self.block8 = nn.Sequential(*block8)
         else:
             block8 = [UpconvBlock(in_channels=nf, out_channels=nf, upscale_factor=2, act_type='leakyrelu') for _ in range(upsample_block_num)]
-            block8.append(nn.Conv2d(nf, in_nc, kernel_size=9, stride=1, padding=4))
-            self.block8 = nn.Sequential(*block8)
+
+        block8.append(nn.Conv2d(nf, in_nc, kernel_size=9, stride=1, padding=4))
+        self.block8 = nn.Sequential(*block8)
 
     def forward(self, x, isTest=False, outm=None):
         # During testing, the max_pool+upscale operations do not result in the original dimensions
@@ -304,17 +296,14 @@ class ASRResNet(nn.Module):
         block6 = self.block6(block5)
         block7 = self.block7(block6)
         # Elementwise sum, with FSA if enabled
-        if self.self_attention:
-            sum = self.FSA(block1 + block7)
-        else:
-            sum = block1 + block7
+        sum = self.FSA(block1 + block7) if self.self_attention else block1 + block7
         # Upscaling layers
         block8 = self.block8(sum)
-        
+
         if isTest == True:
             #block8 = nn.functional.upsample(block8, size=out_size, mode='bilinear')
             block8 = nn.functional.interpolate(block8, size=out_size, mode='bilinear', align_corners=False)
-            
+
         if outm=='scaltanh': # limit output range to [-1,1] range with tanh and rescale to [0,1] Idea from: https://github.com/goldhuang/SRGAN-PyTorch/blob/master/model.py
             return(torch.tanh(block8) + 1.0) / 2.0 # Normalize to [0,1]
         elif outm=='tanh': # Normalize limit output to [-1,1] range
@@ -398,10 +387,9 @@ class ADiscriminator(nn.Module):
         
 
     def forward(self, x, out_features=True):
-        feature_maps = []
         batch_size = x.size(0) # SRGAN
         x = self.act1(self.conv1(x))
-        feature_maps.append(x)
+        feature_maps = [x]
         if self.spectral_norm:
             x = self.act2(self.conv2(x))
         else:
@@ -443,19 +431,19 @@ class ADiscriminator(nn.Module):
         x = self.act9(self.conv9(x))
         feature_maps.append(x)
         x = self.conv10(x)
-        
+
         # print(list(x.view(batch_size).size()))
         # print(list(x.size()))
         # print(list((x.view(-1,1).size())))
         # print(x.view(x.size(0), -1))
-        
+
         if out_features:
             # return torch.sigmoid(x.view(batch_size)), feature_maps # SRGAN and SRGAN + Features #print(list(x.view(batch_size).size())) = [8]
             return torch.sigmoid(x.view(batch_size, -1)), feature_maps # https://github.com/lycutter/SRGAN-SpectralNorm/blob/master/model.py doesn't use "sigmoid" cap
             # return x, feature_maps #pix2pix patch gan outputs the result directly, ESRGAN too, after x = x.view(x.size(0), -1) and x = self.classifier(x) #print(list(x.size())) = [8, 1, 1, 1]
             # return torch.sigmoid(x.view(-1,1)), feature_maps #https://github.com/mitulrm/SRGAN/blob/master/SR_GAN.ipynb # print(x.view(x.size(0), -1)) = [8, 1]
             # return torch.sigmoid(x.view(x.size(0), -1)), feature_maps # print(x.view(x.size(0), -1)) = a tensor with 8 values
-            
+
         else:
             # return torch.sigmoid(x.view(batch_size)) # SRGAN and SRGAN + Features
             return torch.sigmoid(x.view(batch_size, -1)) # https://github.com/lycutter/SRGAN-SpectralNorm/blob/master/model.py doesn't use "sigmoid" cap
@@ -524,10 +512,9 @@ class Discriminator_VGG_128_fea(nn.Module):
                 nn.Linear(512 * 4 * 4, 100), nn.LeakyReLU(0.2, True), nn.Linear(100, 1))
 
     def forward(self, x):
-        feature_maps = []
         # x = self.features(x)
         x = self.conv0(x)
-        feature_maps.append(x)
+        feature_maps = [x]
         x = self.conv1(x)
         feature_maps.append(x)
         x = self.conv2(x)
@@ -546,7 +533,7 @@ class Discriminator_VGG_128_fea(nn.Module):
         feature_maps.append(x)
         x = self.conv9(x)
         feature_maps.append(x)
-        
+
         x = x.view(x.size(0), -1)
         x = self.classifier(x)
         return x, feature_maps

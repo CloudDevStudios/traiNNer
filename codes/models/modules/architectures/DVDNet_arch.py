@@ -25,13 +25,11 @@ def replace_field(x, input_image, upfield=True):
         x = vertical_upscale(x, upfield=False)
         upper_input = vertical_upscale(upper_input, upfield=True)
         # print(upper_input.shape, x.shape)
-        out = x + upper_input
+        return x + upper_input
     else:
         x = vertical_upscale(x, upfield=True)
         lower_input = vertical_upscale(lower_input, upfield=False)
-        out = x + lower_input
-
-    return out
+        return x + lower_input
 
 
 class DVDNet(nn.Module):

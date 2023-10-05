@@ -86,11 +86,11 @@ class GANLoss(nn.Module):
             self.loss = nn.BCEWithLogitsLoss()
         elif self.gan_type == 'lsgan':
             self.loss = nn.MSELoss()
-        elif self.gan_type == 'srpgan' or self.gan_type == 'nsgan':
+        elif self.gan_type in ['srpgan', 'nsgan']:
             self.loss = nn.BCELoss()
         elif self.gan_type == 'hinge':
             self.loss = nn.ReLU()
-        elif self.gan_type == 'wgan-gp' or self.gan_type == 'wgangp':
+        elif self.gan_type in ['wgan-gp', 'wgangp']:
 
             def wgan_loss(input, target):
                 # target is boolean
@@ -163,11 +163,10 @@ class GradientPenaltyLoss(nn.Module):
     def forward(self, interp, interp_crit):
         grad_outputs = self.get_grad_outputs(interp_crit)
         grad_interp = torch.autograd.grad(outputs=interp_crit, inputs=interp, \
-            grad_outputs=grad_outputs, create_graph=True, retain_graph=True, only_inputs=True)[0]
+                grad_outputs=grad_outputs, create_graph=True, retain_graph=True, only_inputs=True)[0]
         grad_interp = grad_interp.view(grad_interp.size(0), -1)  # flatten the data
         grad_interp_norm = (grad_interp + self.eps).norm(2, dim=1)  # added eps
-        loss = ((grad_interp_norm - self.constant)**2).mean()
-        return loss
+        return ((grad_interp_norm - self.constant)**2).mean()
 
 
 class HFENLoss(nn.Module):  # Edge loss with pre_smooth
@@ -247,8 +246,8 @@ class TVLoss(nn.Module):
         super(TVLoss, self).__init__()
         if isinstance(p, str):
            p = 1 if '1' in p else 2
-        if not p in [1, 2]:
-              raise ValueError(f"Expected p value to be 1 or 2, but got {p}")
+        if p not in [1, 2]:
+            raise ValueError(f"Expected p value to be 1 or 2, but got {p}")
 
         self.p = p
         self.tv_type = tv_type.lower()
@@ -397,9 +396,8 @@ class ClipL1(nn.Module):
         self.clip_max = clip_max
         self.clip_min = clip_min
 
-    def forward(self, x:torch.Tensor, y:torch.Tensor)-> torch.Tensor:
-        loss = torch.mean(torch.clamp(torch.abs(x-y), self.clip_min, self.clip_max))
-        return loss
+    def forward(self, x:torch.Tensor, y:torch.Tensor) -> torch.Tensor:
+        return torch.mean(torch.clamp(torch.abs(x-y), self.clip_min, self.clip_max))
 
 
 class MaskedL1Loss(nn.Module):
@@ -578,9 +576,9 @@ class OFR_loss(nn.Module):
 
     def forward(self, x0, x1, optical_flow):
         warped = optical_flow_warp(x0, optical_flow)
-        loss = (torch.mean(torch.abs(x1 - warped)) +
-            self.reg_weight * self.reg(optical_flow))
-        return loss
+        return torch.mean(torch.abs(x1 - warped)) + self.reg_weight * self.reg(
+            optical_flow
+        )
 
 
 # TODO: testing
@@ -627,10 +625,7 @@ class GPLoss(nn.Module):
     def __init__(self, trace=False, spl_denorm=False):
         super(GPLoss, self).__init__()
         self.spl_denorm = spl_denorm
-        if trace:  # Alternate behavior: use the complete calculation with SPL_ComputeWithTrace()
-            self.trace = SPL_ComputeWithTrace()
-        else:  # Default behavior: use the more efficient SPLoss()
-            self.trace = SPLoss()
+        self.trace = SPL_ComputeWithTrace() if trace else SPLoss()
 
     def __call__(self, x, y):
         """
@@ -885,19 +880,17 @@ class Contextual_Loss(nn.Module):
 
         res = [feats_sample.view(N, C, output_1d_size, output_1d_size) for feats_sample in res]
 
-        if single_input:
-            return res[0]
-        return res
+        return res[0] if single_input else res
 
     @staticmethod
     def _crop_quarters(feature_tensor):
         N, fC, fH, fW = feature_tensor.size()
-        quarters_list = []
-        quarters_list.append(feature_tensor[..., 0:round(fH / 2), 0:round(fW / 2)])
-        quarters_list.append(feature_tensor[..., 0:round(fH / 2), round(fW / 2):])
-        quarters_list.append(feature_tensor[..., round(fH / 2):, 0:round(fW / 2)])
-        quarters_list.append(feature_tensor[..., round(fH / 2):, round(fW / 2):])
-
+        quarters_list = [
+            feature_tensor[..., 0 : round(fH / 2), 0 : round(fW / 2)],
+            feature_tensor[..., 0 : round(fH / 2), round(fW / 2) :],
+            feature_tensor[..., round(fH / 2) :, 0 : round(fW / 2)],
+            feature_tensor[..., round(fH / 2) :, round(fW / 2) :],
+        ]
         feature_tensor = torch.cat(quarters_list, dim=0)
         return feature_tensor
 
@@ -944,22 +937,21 @@ class Contextual_Loss(nn.Module):
                 torch.abs(Ivec.view(C, -1, 1) - Tvec.view(C, 1, -1)), dim=0, keepdim=False
             )
             raw_distance.append(dist.view(1, H, W, H*W))
-        raw_distance = torch.cat(raw_distance, dim=0)
-        return raw_distance
+        return torch.cat(raw_distance, dim=0)
 
     @staticmethod
     def _create_using_dotP(I_features, T_features):
         assert I_features.size() == T_features.size()
         # prepare feature before calculating cosine distance
         # mean shifting by channel-wise mean of `y`.
-        mean_T = T_features.mean(dim=(0, 2, 3), keepdim=True)        
+        mean_T = T_features.mean(dim=(0, 2, 3), keepdim=True)
         I_features = I_features - mean_T
         T_features = T_features - mean_T
 
         # L2 channelwise normalization
         I_features = F.normalize(I_features, p=2, dim=1)
         T_features = F.normalize(T_features, p=2, dim=1)
-        
+
         N, C, H, W = I_features.size()
         cosine_dist = []
         # work seperatly for each example in dim 1
@@ -973,9 +965,7 @@ class Contextual_Loss(nn.Module):
             cosine_dist.append(dist.to(torch.float32))  # back to 1CHW
         cosine_dist = torch.cat(cosine_dist, dim=0)
         cosine_dist = (1 - cosine_dist) / 2
-        cosine_dist = cosine_dist.clamp(min=0.0)
-
-        return cosine_dist
+        return cosine_dist.clamp(min=0.0)
 
     # compute_relative_distance
     @staticmethod
@@ -987,12 +977,13 @@ class Contextual_Loss(nn.Module):
         :return:
         """
         div = torch.min(raw_distance, dim=-1, keepdim=True)[0]
-        relative_dist = raw_distance / (div + epsilon)  # Eq 2
-        return relative_dist
+        return raw_distance / (div + epsilon)
 
     def symetric_CX_Loss(self, I_features, T_features):
-        loss = (self.calculate_CX_Loss(T_features, I_features) + self.calculate_CX_Loss(I_features, T_features)) / 2
-        return loss  # score
+        return (
+            self.calculate_CX_Loss(T_features, I_features)
+            + self.calculate_CX_Loss(I_features, T_features)
+        ) / 2
 
     def bilateral_CX_Loss(self, I_features, T_features, weight_sp: float = 0.1):
         def compute_meshgrid(shape):

@@ -45,11 +45,13 @@ class LRHRDataset(Dataset):
             # self.pbr_list = os.listdir(self.paths_HR)
             # print(self.paths_HR)
             self.pbr_list = []
-            for root,dirs,files in os.walk(self.paths_HR):
-                if files and not dirs:
-                    self.pbr_list.append(root)
-            # print(self.pbr_list)
-        
+            self.pbr_list.extend(
+                root
+                for root, dirs, files in os.walk(self.paths_HR)
+                if files and not dirs
+            )
+                # print(self.pbr_list)
+
         # Get dataroot_LR
         self.paths_LR = opt.get('dataroot_LR', None)
 
@@ -59,7 +61,7 @@ class LRHRDataset(Dataset):
         HR_size = self.opt.get('HR_size', 128)
         if HR_size:
             LR_size = HR_size // scale
-        
+
         # Default case: tensor will result in the [0,1] range
         # Alternative: tensor will be z-normalized to the [-1,1] range
         znorm  = self.opt.get('znorm', False)
@@ -116,7 +118,7 @@ class LRHRDataset(Dataset):
             elif source.find('_glossiness.') >= 0 and not isinstance(roughness_img, np.ndarray):
                 # glossiness_img = util.read_img(None, os.path.join(cur_dir, source), out_nc=1)
                 roughness_img = 255 - util.read_img(None, os.path.join(cur_dir, source), out_nc=1)
-        
+
         # if isinstance(albedo_img, np.ndarray) and isinstance(ao_img, np.ndarray) and not isinstance(diffuse_img, np.ndarray):
         #     diffuse_img = albedo_img - (255 - ao_img)
         #     diffuse_img_lr = diffuse_img
@@ -143,15 +145,15 @@ class LRHRDataset(Dataset):
         #     tmp_vis(reflection_img, False)
         # if isinstance(roughness_img, np.ndarray):
         #     tmp_vis(roughness_img, False)
-        
+
         ######## Modify the images ########
-        
+
         # HR modcrop in the validation / test phase
         # if self.opt['phase'] != 'train':
         #     img_HR = util.modcrop(img_HR, scale)
-        
+
         ######## Augmentations ########
-        
+
         #Augmentations during training
         if self.opt['phase'] == 'train':
             
@@ -174,13 +176,13 @@ class LRHRDataset(Dataset):
                         else:
                             ds_kernel = None
                         diffuse_img_lr, _ = Scale(img=diffuse_img_lr, scale=scale, algo=ds_algo, ds_kernel=ds_kernel)
-                    
+
                     HR_pad, fill = get_pad(diffuse_img, HR_size, fill='random', padding_mode=self.opt.get('pad_mode', 'constant'))
                     diffuse_img = HR_pad(np.copy(diffuse_img))
-                    
+
                     LR_pad, _ = get_pad(diffuse_img_lr, HR_size//scale, fill=fill, padding_mode=self.opt.get('pad_mode', 'constant'))
                     diffuse_img_lr = LR_pad(np.copy(diffuse_img_lr))
-            
+
             # (Randomly) scale LR (from HR) during training if :
             # - LR dataset is not provided
             # - LR dataset is not in the correct scale
@@ -213,28 +215,29 @@ class LRHRDataset(Dataset):
                 roughness_img, _ = apply_crop_params(HR=roughness_img, LR=None, hr_crop_params=hr_crop_params, lr_crop_params=None)
 
             # Below are the On The Fly augmentations
-            
+
             # Apply unsharpening mask to HR images
             if self.opt.get('hr_unsharp_mask', None):
                 hr_rand_unsharp = self.opt.get('hr_rand_unsharp', 0)
                 diffuse_img_lr =  transforms.FilterUnsharp(p=hr_rand_unsharp)(diffuse_img_lr)
-            
+
             # Add blur if LR blur AND blur types are provided, else will skip
             if self.opt.get('lr_blur', None):
-                blur_option = get_blur(self.opt.get('lr_blur_types', None))
-                if blur_option:
+                if blur_option := get_blur(self.opt.get('lr_blur_types', None)):
                     diffuse_img_lr = blur_option(diffuse_img_lr)
-            
+
             # LR primary noise: Add noise to LR if enabled AND noise types are provided, else will skip
             if self.opt.get('lr_noise', None):
-                noise_option = get_noise(self.opt.get('lr_noise_types', None), self.noise_patches)
-                if noise_option:
+                if noise_option := get_noise(
+                    self.opt.get('lr_noise_types', None), self.noise_patches
+                ):
                     diffuse_img_lr = noise_option(diffuse_img_lr)
 
             # LR secondary noise: Add additional noise to LR if enabled AND noise types are provided, else will skip
             if self.opt.get('lr_noise2', None):
-                noise_option = get_noise(self.opt.get('lr_noise_types2', None), self.noise_patches)
-                if noise_option:
+                if noise_option := get_noise(
+                    self.opt.get('lr_noise_types2', None), self.noise_patches
+                ):
                     diffuse_img_lr = noise_option(diffuse_img_lr)
 
         dataset_out = {}

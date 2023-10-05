@@ -59,10 +59,8 @@ def process_img_paths(images_paths=None, data_type='img', max_dataset_size=float
     paths_list = []
     for path in images_paths:
         paths = get_image_paths(data_type, path, max_dataset_size)
-        for imgs in paths:
-            paths_list.append(imgs)
-    paths_list = sorted(paths_list)
-    return paths_list
+        paths_list.extend(iter(paths))
+    return sorted(paths_list)
 
 
 def read_subset(dataroot, subset_file):
@@ -115,11 +113,11 @@ def check_data_keys(opt, keys_ds=None):
     keys_A = ['LR', 'A', 'lq']
     keys_B = ['HR', 'B', 'gt']
 
-    root_A = 'dataroot_' + keys_ds[0]
-    root_B = 'dataroot_' + keys_ds[1]
+    root_A = f'dataroot_{keys_ds[0]}'
+    root_B = f'dataroot_{keys_ds[1]}'
     for pair_keys in zip(keys_A, keys_B):
-        A_el = 'dataroot_' + pair_keys[0]
-        B_el = 'dataroot_' + pair_keys[1]
+        A_el = f'dataroot_{pair_keys[0]}'
+        B_el = f'dataroot_{pair_keys[1]}'
         if opt.get(B_el, None) and B_el != root_B:
             opt[root_B] = opt[B_el]
             opt.pop(B_el)
@@ -141,8 +139,8 @@ def read_dataroots(opt, keys_ds=None):
     """
     if keys_ds is None: keys_ds = ['LR', 'HR']
     paths_A, paths_B = None, None
-    root_A = 'dataroot_' + keys_ds[0]
-    root_B = 'dataroot_' + keys_ds[1]
+    root_A = f'dataroot_{keys_ds[0]}'
+    root_B = f'dataroot_{keys_ds[1]}'
 
     # read image list from subset list txt
     if opt['subset_file'] is not None and opt['phase'] == 'train':
@@ -193,12 +191,13 @@ def validate_paths(paths_A, paths_B, strict=True, keys_ds=None):
 
     if keys_ds is None: keys_ds = ['LR', 'HR']
     if not strict:
-        assert len(paths_B) >= len(paths_A), \
-            '{} dataset contains less images than {} dataset  - {}, {}.'.format(\
-            keys_ds[1], keys_ds[0], len(paths_B), len(paths_A))
+        assert len(paths_B) >= len(
+            paths_A
+        ), f'{keys_ds[1]} dataset contains less images than {keys_ds[0]} dataset  - {len(paths_B)}, {len(paths_A)}.'
         if len(paths_A) < len(paths_B):
-            print('{} contains less images than {} dataset  - {}, {}. Will generate missing images on the fly.'.format(
-                keys_ds[0], keys_ds[1], len(paths_A), len(paths_B)))
+            print(
+                f'{keys_ds[0]} contains less images than {keys_ds[1]} dataset  - {len(paths_A)}, {len(paths_B)}. Will generate missing images on the fly.'
+            )
 
     i=0
     tmp_A = []
@@ -207,7 +206,7 @@ def validate_paths(paths_A, paths_B, strict=True, keys_ds=None):
         B_head, B_tail = os.path.split(paths_B[idx])
         if i < len(paths_A):
             A_head, A_tail = os.path.split(paths_A[i])
-            
+
             if A_tail == B_tail:
                 A_img_path = os.path.join(A_head, A_tail)
                 tmp_A.append(A_img_path)
@@ -215,14 +214,10 @@ def validate_paths(paths_A, paths_B, strict=True, keys_ds=None):
                 if strict:
                     B_img_path = os.path.join(B_head, B_tail)
                     tmp_B.append(B_img_path)
-            else:
-                if not strict:
-                    A_img_path = None
-                    tmp_A.append(A_img_path)
-        else: #if the last image is missing
-            if not strict:
-                A_img_path = None
-                tmp_A.append(A_img_path)
+            elif not strict:
+                tmp_A.append(None)
+        elif not strict:
+            tmp_A.append(None)
     paths_A = tmp_A
     paths_B = tmp_B if strict else paths_B
 
@@ -313,9 +308,7 @@ def read_imgs_from_path(opt, index, paths_A, paths_B, A_env, B_env):
 
 def get_single_dataroot_path(opt=None, dataroot=None, max_dataset_size=float("inf")):
     images_paths = format_paths(dataroot)
-    img_paths = process_img_paths(images_paths, opt['data_type'], max_dataset_size)
-
-    return img_paths
+    return process_img_paths(images_paths, opt['data_type'], max_dataset_size)
 
 def read_split_single_dataset(opt, index, AB_paths, env):
     loader = opt.get('img_loader', 'cv2')

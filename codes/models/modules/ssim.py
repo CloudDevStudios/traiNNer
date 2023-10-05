@@ -100,15 +100,8 @@ def ssim(X, Y, win=None, window_size=3, data_range=None, K=(0.01,0.03), compensa
     """
 
     if data_range is None:
-        if torch.max(X) > 128:
-            max_val = 255
-        else:
-            max_val = 1
-
-        if torch.min(X) < -0.5:
-            min_val = -1
-        else:
-            min_val = 0
+        max_val = 255 if torch.max(X) > 128 else 1
+        min_val = -1 if torch.min(X) < -0.5 else 0
         data_range = max_val - min_val
 
     K1, K2 = K
@@ -119,8 +112,8 @@ def ssim(X, Y, win=None, window_size=3, data_range=None, K=(0.01,0.03), compensa
     batch, channel, height, width = X.shape
     if win is None:
         valid_size = min(window_size, height, width)
-        if not (valid_size % 2 == 1): #kernel size should be odd
-                  valid_size = valid_size - 1
+        if valid_size % 2 != 1: #kernel size should be odd
+            valid_size = valid_size - 1
         win = get_gaussian_kernel1d(valid_size)
         win = win.repeat(channels, 1, 1, 1)
 
@@ -247,15 +240,15 @@ class SSIM(nn.Module):
             full (bool, optional): return contrast sensitivity (cs) or not
         """
         super(SSIM, self).__init__()
-        if not (window_size % 2 == 1):
+        if window_size % 2 != 1:
             raise ValueError('Window size must be odd.')
-               
+
         if win is None: #generate gaussian kernel
             win = get_gaussian_kernel1d(window_size, window_sigma)
             win = win.repeat(channels, 1, 1, 1)
-        
+
         win_size = win.shape[-1]
-        if not (win_size % 2 == 1):
+        if win_size % 2 != 1:
             raise ValueError('Window size should be odd.')
 
         self.window = torch.nn.Parameter(win, requires_grad=False)
@@ -286,9 +279,9 @@ class SSIM(nn.Module):
         #     raise ValueError('Input images must have the same dtype.')
         #     Y = Y.type(X.type())
 
-        if not X.shape == Y.shape:
+        if X.shape != Y.shape:
             raise ValueError('Input images must have the same dimensions.')
-        
+
         if shave:
             X = X[..., shave:-shave, shave:-shave]
             Y = Y[..., shave:-shave, shave:-shave]
@@ -298,10 +291,7 @@ class SSIM(nn.Module):
         if nonnegative_ssim:
             ssim_val = torch.relu(ssim_val)
 
-        if self.full:
-            return ssim_val, cs
-        else:
-            return ssim_val
+        return (ssim_val, cs) if self.full else ssim_val
 
 
 
@@ -349,7 +339,7 @@ def ms_ssim(X, Y, win_size=11, win_sigma=1.5, win=None, data_range: float =255,
         _, _, H_s, W_s = X.size()
         if win_size > H_s or win_size > W_s:
             size_s = min(win_size, H_s, W_s)
-            if not (size_s % 2 == 1): #kernel win_size has to be odd and smaller than the image W and H
+            if size_s % 2 != 1: #kernel win_size has to be odd and smaller than the image W and H
                 size_s = size_s - 1
             # Control: Scale down sigma if a smaller filter size is used.
             win_sigma = size_s * win_sigma / win_size if win_size else 0
@@ -357,12 +347,12 @@ def ms_ssim(X, Y, win_size=11, win_sigma=1.5, win=None, data_range: float =255,
             #Update the window before calling the _ssim function
             win = get_gaussian_kernel1d(win_size, win_sigma) #X.shape[1] = channels
             win = win.repeat(X.shape[1], 1, 1, 1) #Alt> win.expand(X.shape[1], 1, 1, -1)  # Dynamic window expansion. expand() does not copy memory.
-            
+
         ssim_val, cs = ssim(X, Y, win=win, data_range=data_range, K=K, size_average=False, use_padding=use_padding)
         if normalize == 'relu':
             cs = torch.relu(cs)
             ssim_val = torch.relu(ssim_val)
-        cs_vals.append(cs) 
+        cs_vals.append(cs)
         #only option 2 uses this:
         ssim_vals.append(ssim_val)  # (batch, channel) #Note: only the last ssim value (ssim_vals[-1]) is used to calculate final ms_ssim. Could also not use this list and keep only the final ssim_val
 
@@ -377,13 +367,13 @@ def ms_ssim(X, Y, win_size=11, win_sigma=1.5, win=None, data_range: float =255,
         cs_vals = torch.stack(cs_vals, dim=0)  # cs_vals, (level, batch)
         # Take weighted geometric mean across the scale axis.
         ms_ssim_val = torch.prod((cs_vals[:-1] ** weights[:-1].unsqueeze(1)) * (ssim_val ** weights[-1]), dim=0)  # (batch, ) #dim=0 to keep the batch
-    
+
     elif option == 2: #alt: https://github.com/jorge-pessoa/pytorch-msssim/blob/master/pytorch_msssim/__init__.py
         #Note: This one uses all ssim_val (ms_ssim_val) instead of just the last one, but the final resulting 
         # values are almost the same 
         cs_vals = torch.stack(cs_vals, dim=0)  # cs_vals, (level, batch)
         ms_ssim_val = torch.stack(ssim_vals, dim=0) #for alt
-        
+
         pow1 = cs_vals ** weights.unsqueeze(1)
         pow2 = ms_ssim_val ** weights.unsqueeze(1)
         # Take weighted geometric mean across the scale axis.
@@ -393,7 +383,7 @@ def ms_ssim(X, Y, win_size=11, win_sigma=1.5, win=None, data_range: float =255,
         #Note3: this one uses all cs_vals values, instead of popping the last one out, but the final resulting 
         # values are almost the same 
         cs_vals = torch.stack(cs_vals, dim=0)  # cs_vals, (level, batch)
-        
+
         cs = cs_vals*ssim_vals[-1]
         # Take weighted geometric mean across the scale axis.
         ms_ssim_val = torch.prod((torch.abs(cs))**(weights.unsqueeze(1)), dim=0)
@@ -468,7 +458,7 @@ class MS_SSIM(nn.Module):
             levels: number of downsampling
         """
         super(MS_SSIM, self).__init__()
-        if not (window_size % 2 == 1):
+        if window_size % 2 != 1:
             raise ValueError('Window size must be odd.')
 
         if weights is None:
@@ -482,7 +472,7 @@ class MS_SSIM(nn.Module):
         if levels is not None:
             weights = weights[:levels]
             weights = weights / weights.sum()
-        
+
         self.weights = torch.nn.Parameter(weights, requires_grad=False)
         self.window = torch.nn.Parameter(win, requires_grad=False)
         self.window_size = window_size
@@ -513,9 +503,9 @@ class MS_SSIM(nn.Module):
         #     raise ValueError('Input images must have the same dtype.')
         #     Y = Y.type(X.type())
 
-        if not X.shape == Y.shape:
+        if X.shape != Y.shape:
             raise ValueError('Input images must have the same dimensions.')
-        
+
         if shave:
             X = X[..., shave:-shave, shave:-shave]
             Y = Y[..., shave:-shave, shave:-shave]

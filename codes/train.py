@@ -32,11 +32,20 @@ def dir_check(opt):
         # starting from scratch, needs to create training directory
         if not opt['path']['resume_state']:
             util.mkdir_and_rename(opt['path']['experiments_root'])  # rename old folder if exists
-            util.mkdirs((path for key, path in opt['path'].items() if not key == 'experiments_root'
-                        and 'pretrain_model' not in key and 'resume' not in key))
+            util.mkdirs(
+                path
+                for key, path in opt['path'].items()
+                if key != 'experiments_root'
+                and 'pretrain_model' not in key
+                and 'resume' not in key
+            )
     else:
         # create testing directory
-        util.mkdirs((path for key, path in opt['path'].items() if not key == 'pretrain_model_G'))
+        util.mkdirs(
+            path
+            for key, path in opt['path'].items()
+            if key != 'pretrain_model_G'
+        )
 
 
 def configure_loggers(opt=None):
@@ -53,7 +62,7 @@ def configure_loggers(opt=None):
     # initialize tensorboard logger
     tb_logger = None
     if opt.get('use_tb_logger', False) and 'debug' not in opt['name']:
-        version = float(torch.__version__[0:3])
+        version = float(torch.__version__[:3])
         log_dir = os.path.join(opt['path']['root'], 'tb_logger', opt['name'])
         # log_dir = os.path.join(opt['path']['experiments_root'], opt['name'], 'tb')
         # logdir_valid = os.path.join(opt['path']['root'], 'tb_logger', opt['name'] + 'valid')
@@ -63,9 +72,9 @@ def configure_loggers(opt=None):
             try:
                 from torch.utils.tensorboard import SummaryWriter
             except:
-                from tensorboardX import SummaryWriter    
+                from tensorboardX import SummaryWriter
         else:
-            logger.info('You are using PyTorch {}. Using [tensorboardX].'.format(version))
+            logger.info(f'You are using PyTorch {version}. Using [tensorboardX].')
             from tensorboardX import SummaryWriter
         try:
             # for versions PyTorch > 1.1 and tensorboardX < 1.6
@@ -95,9 +104,10 @@ def get_resume_state(opt):
             resume_state = torch.load(resume_state_path,
                             map_location=torch.device('cpu'))
 
-        logger.info('Set [resume_state] to {}'.format(resume_state_path))
-        logger.info('Resuming training from epoch: {}, iter: {}.'.format(
-            resume_state['epoch'], resume_state['iter']))
+        logger.info(f'Set [resume_state] to {resume_state_path}')
+        logger.info(
+            f"Resuming training from epoch: {resume_state['epoch']}, iter: {resume_state['iter']}."
+        )
         options.check_resume(opt)  # check resume options
     else:  # training from scratch
         resume_state = None
@@ -111,7 +121,7 @@ def get_random_seed(opt):
     if seed is None:
         seed = random.randint(1, 10000)
         opt['train']['manual_seed'] = seed
-    logger.info('Random seed: {}'.format(seed))
+    logger.info(f'Random seed: {seed}')
     util.set_random_seed(seed)
     return opt
 
@@ -134,14 +144,14 @@ def get_dataloaders(opt):
         dataset = create_dataset(dataset_opt)
 
         if not dataset:
-            raise Exception('Dataset "{}" for phase "{}" is empty.'.format(name, phase))
+            raise Exception(f'Dataset "{name}" for phase "{phase}" is empty.')
 
         dataloaders[phase] = create_dataloader(dataset, dataset_opt, gpu_ids)
 
         if opt['is_train'] and phase == 'train':
             batch_size = dataset_opt.get('batch_size', 4)
             virtual_batch_size = dataset_opt.get('virtual_batch_size', batch_size)
-            virtual_batch_size = virtual_batch_size if virtual_batch_size > batch_size else batch_size
+            virtual_batch_size = max(virtual_batch_size, batch_size)
             # train_size = int(math.ceil(len(dataset) / batch_size))
             train_size = len(dataloaders[phase])
             logger.info(

@@ -31,9 +31,7 @@ class PA(nn.Module):
 
         y = self.conv(x)
         y = self.sigmoid(y)
-        out = torch.mul(x, y)
-
-        return out
+        return torch.mul(x, y)
 
 
 class PACnv(nn.Module):
@@ -195,11 +193,7 @@ class PAN(nn.Module):
 
         # fea = fea + trunk
         # Elementwise sum, with FSA if enabled
-        if self.self_attention:
-            fea = self.FSA(fea + trunk)
-        else:
-            fea = fea + trunk
-
+        fea = self.FSA(fea + trunk) if self.self_attention else fea + trunk
         """
         # original upsample
         if self.scale == 2 or self.scale == 3:
@@ -357,7 +351,7 @@ class AAN(nn.Module):
         trunk = self.trunk_conv(self.AAB_trunk(fea))
         fea = fea + trunk
 
-        if self.scale == 2 or self.scale == 3:
+        if self.scale in [2, 3]:
             fea = self.upconv1(F.interpolate(fea, scale_factor=self.scale, mode='nearest'))
             fea = self.lrelu(self.att1(fea))
             fea = self.lrelu(self.HRconv1(fea))

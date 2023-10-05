@@ -139,7 +139,7 @@ class MSRResNet(nn.Module):
         if self.upscale == 4:
             out = self.lrelu(self.pixel_shuffle(self.upconv1(out)))
             out = self.lrelu(self.pixel_shuffle(self.upconv2(out)))
-        elif self.upscale == 3 or self.upscale == 2:
+        elif self.upscale in [3, 2]:
             out = self.lrelu(self.pixel_shuffle(self.upconv1(out)))
 
         out = self.conv_last(self.lrelu(self.HRconv(out)))

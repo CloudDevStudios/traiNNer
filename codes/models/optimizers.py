@@ -44,10 +44,9 @@ def get_optim_params(networks, only_requires_grad:bool=True,
                         optim_params_filter.append(v)
                     else:
                         optim_params.append(v)
-                else:
-                    if logger:
-                        logger.warning(
-                            f'Params [{k:s}] will not be optimized.')
+                elif logger:
+                    logger.warning(
+                        f'Params [{k:s}] will not be optimized.')
         if logger:
             logger.info(
                 f'Filtered {len(optim_params_filter)} {param_filter} params.')
@@ -86,52 +85,75 @@ def config_optimizer(train_opt: dict, name: str, net=None,
     # TODO: remove
     # print("params:", name, len(optim_params))
 
-    optim = train_opt.get('optim_' + name, 'adam')
-    lr = train_opt.get('lr_' + name,  1e-4)
-    wd = train_opt.get('weight_decay_' + name, 0)
-    eps = train_opt.get('eps_' + name, 1e-8)
-    nesterov = train_opt.get('nesterov_' + name, False)
-    delta = train_opt.get('delta_' + name, 0.1)
-    wd_ratio = train_opt.get('wd_ratio_' + name, 0.1)
-    beta1 = train_opt.get('beta1_' + name, 0.9)
-    momentum = train_opt.get('momentum_' + name, beta1)
-    beta2 = train_opt.get('beta2_' + name, 0.999)
+    optim = train_opt.get(f'optim_{name}', 'adam')
+    lr = train_opt.get(f'lr_{name}', 1e-4)
+    wd = train_opt.get(f'weight_decay_{name}', 0)
+    eps = train_opt.get(f'eps_{name}', 1e-8)
+    nesterov = train_opt.get(f'nesterov_{name}', False)
+    delta = train_opt.get(f'delta_{name}', 0.1)
+    wd_ratio = train_opt.get(f'wd_ratio_{name}', 0.1)
+    beta1 = train_opt.get(f'beta1_{name}', 0.9)
+    momentum = train_opt.get(f'momentum_{name}', beta1)
+    beta2 = train_opt.get(f'beta2_{name}', 0.999)
 
     if optim == 'sgd':
-        optimizer = torch.optim.SGD(optim_params, lr=lr,
-            weight_decay=wd, momentum=momentum)
+        return torch.optim.SGD(
+            optim_params, lr=lr, weight_decay=wd, momentum=momentum
+        )
     elif optim == 'rmsprop':
-        optimizer = torch.optim.RMSprop(optim_params, lr=lr,
-            weight_decay=wd, eps=eps)
+        return torch.optim.RMSprop(
+            optim_params, lr=lr, weight_decay=wd, eps=eps
+        )
     elif optim == 'sgdp':
-        optimizer = SGDP(optim_params, lr=lr,
-            weight_decay=wd, momentum=momentum,
-            dampening=train_opt.get('dampening_' + name, 0),
+        return SGDP(
+            optim_params,
+            lr=lr,
+            weight_decay=wd,
+            momentum=momentum,
+            dampening=train_opt.get(f'dampening_{name}', 0),
             nesterov=nesterov,
-            eps=eps, delta=delta, wd_ratio=wd_ratio)
+            eps=eps,
+            delta=delta,
+            wd_ratio=wd_ratio,
+        )
     elif optim == 'adamp':
-        optimizer = AdamP(optim_params, lr=lr,
-            weight_decay=wd, betas=(beta1, beta2),
-            nesterov=nesterov, eps=eps,
-            delta=delta, wd_ratio=wd_ratio)
+        return AdamP(
+            optim_params,
+            lr=lr,
+            weight_decay=wd,
+            betas=(beta1, beta2),
+            nesterov=nesterov,
+            eps=eps,
+            delta=delta,
+            wd_ratio=wd_ratio,
+        )
     elif optim == 'ranger':
-        optimizer = Ranger(optim_params, lr=lr,
-            weight_decay=wd, betas=(beta1, beta2),
-            eps=eps, alpha=train_opt.get('alpha_' + name, 0.5),
-            k=train_opt.get('k_' + name, 6),
-            N_sma_threshhold=train_opt.get('N_sma_threshhold_' + name, 5),
-            use_gc=train_opt.get('use_gc_' + name, True),
-            gc_conv_only=train_opt.get('gc_conv_only_' + name, False),
-            gc_loc=train_opt.get('gc_loc_' + name, True))
+        return Ranger(
+            optim_params,
+            lr=lr,
+            weight_decay=wd,
+            betas=(beta1, beta2),
+            eps=eps,
+            alpha=train_opt.get(f'alpha_{name}', 0.5),
+            k=train_opt.get(f'k_{name}', 6),
+            N_sma_threshhold=train_opt.get(f'N_sma_threshhold_{name}', 5),
+            use_gc=train_opt.get(f'use_gc_{name}', True),
+            gc_conv_only=train_opt.get(f'gc_conv_only_{name}', False),
+            gc_loc=train_opt.get(f'gc_loc_{name}', True),
+        )
     elif optim == 'madgrad':
-        optimizer = MADGRAD(optim_params, lr=lr,
-            eps=eps, momentum=momentum, weight_decay=wd,
-            decay_type=train_opt.get('decay_type_' + name, 'AdamW'))
+        return MADGRAD(
+            optim_params,
+            lr=lr,
+            eps=eps,
+            momentum=momentum,
+            weight_decay=wd,
+            decay_type=train_opt.get(f'decay_type_{name}', 'AdamW'),
+        )
     else: # default to 'adam'
-        optimizer = torch.optim.Adam(optim_params, lr=lr,
-            weight_decay=wd, betas=(beta1, beta2))
-
-    return optimizer
+        return torch.optim.Adam(
+            optim_params, lr=lr, weight_decay=wd, betas=(beta1, beta2)
+        )
 
 
 def get_optimizers(cri_gan=None, netD=None, netG=None, train_opt=None,
@@ -164,7 +186,7 @@ def config_optimizer_filter(train_opt: dict, name: str, net=None,
 
     if param_filter:
         assert isinstance(param_filter, str)
-        param_filter = '.{}.'.format(param_filter)  # '.RRDB.'
+        param_filter = f'.{param_filter}.'
 
     # optimizers
     if optim_params is None:
@@ -178,159 +200,191 @@ def config_optimizer_filter(train_opt: dict, name: str, net=None,
     # print("Params:", name, len(optim_params))
     # print("Filter:", name, len(optim_params_filter))
 
-    optim = train_opt.get('optim_' + name, 'adam')
-    lr = train_opt.get('lr_' + name,  1e-4)
+    optim = train_opt.get(f'optim_{name}', 'adam')
+    lr = train_opt.get(f'lr_{name}', 1e-4)
     lr_filter = train_opt.get('lr_filter_', lr)
-    wd = train_opt.get('weight_decay_' + name, 0)
-    eps = train_opt.get('eps_' + name, 1e-8)
-    nesterov = train_opt.get('nesterov_' + name, False)
-    delta = train_opt.get('delta_' + name, 0.1)
-    wd_ratio = train_opt.get('wd_ratio_' + name, 0.1)
-    dampening = train_opt.get('dampening_' + name, 0)
-    beta1 = train_opt.get('beta1_' + name, 0.9)
-    momentum = train_opt.get('momentum_' + name, beta1)
-    beta2 = train_opt.get('beta2_' + name, 0.999)
+    wd = train_opt.get(f'weight_decay_{name}', 0)
+    eps = train_opt.get(f'eps_{name}', 1e-8)
+    nesterov = train_opt.get(f'nesterov_{name}', False)
+    delta = train_opt.get(f'delta_{name}', 0.1)
+    wd_ratio = train_opt.get(f'wd_ratio_{name}', 0.1)
+    dampening = train_opt.get(f'dampening_{name}', 0)
+    beta1 = train_opt.get(f'beta1_{name}', 0.9)
+    momentum = train_opt.get(f'momentum_{name}', beta1)
+    beta2 = train_opt.get(f'beta2_{name}', 0.999)
 
     # TODO: configure other independent variables for the
     # filtered parameters besides lr_filter
 
     if optim == 'sgd':
-        optimizer = torch.optim.SGD(
+        return torch.optim.SGD(
             [
-                {"params": optim_params,
-                "lr": lr,
-                "momentum": momentum,
-                "weight_decay": wd},
-                {"params": optim_params_filter,
-                "lr": lr_filter,
-                "momentum": momentum,
-                "weight_decay": wd}
+                {
+                    "params": optim_params,
+                    "lr": lr,
+                    "momentum": momentum,
+                    "weight_decay": wd,
+                },
+                {
+                    "params": optim_params_filter,
+                    "lr": lr_filter,
+                    "momentum": momentum,
+                    "weight_decay": wd,
+                },
             ]
         )
     elif optim == 'rmsprop':
-        optimizer = torch.optim.RMSprop(
+        return torch.optim.RMSprop(
             [
-                {"params": optim_params,
-                "lr": lr,
-                "eps": eps,
-                "weight_decay": wd},
-                {"params": optim_params_filter,
-                "lr": lr_filter,
-                "eps": eps,
-                "weight_decay": wd}
+                {
+                    "params": optim_params,
+                    "lr": lr,
+                    "eps": eps,
+                    "weight_decay": wd,
+                },
+                {
+                    "params": optim_params_filter,
+                    "lr": lr_filter,
+                    "eps": eps,
+                    "weight_decay": wd,
+                },
             ]
         )
     elif optim == 'sgdp':
-        optimizer = SGDP(
+        return SGDP(
             [
-                {"params": optim_params,
-                "lr": lr,
-                "momentum": momentum,
-                "weight_decay": wd,
-                "dampening": dampening,
-                "nesterov": nesterov,
-                "eps": eps, 
-                "delta": delta,
-                "wd_ratio": wd_ratio
+                {
+                    "params": optim_params,
+                    "lr": lr,
+                    "momentum": momentum,
+                    "weight_decay": wd,
+                    "dampening": dampening,
+                    "nesterov": nesterov,
+                    "eps": eps,
+                    "delta": delta,
+                    "wd_ratio": wd_ratio,
                 },
-                {"params": optim_params_filter,
-                "lr": lr_filter,
-                "momentum": momentum,
-                "weight_decay": wd,
-                "dampening": dampening,
-                "nesterov": nesterov,
-                "eps": eps, 
-                "delta": delta,
-                "wd_ratio": wd_ratio}
+                {
+                    "params": optim_params_filter,
+                    "lr": lr_filter,
+                    "momentum": momentum,
+                    "weight_decay": wd,
+                    "dampening": dampening,
+                    "nesterov": nesterov,
+                    "eps": eps,
+                    "delta": delta,
+                    "wd_ratio": wd_ratio,
+                },
             ]
         )
     elif optim == 'adamp':
-        optimizer = AdamP(
+        return AdamP(
             [
-                {"params": optim_params,
-                "lr": lr,
-                "beta1": beta1,
-                "beta2": beta2,
-                "weight_decay": wd,
-                "nesterov": nesterov,
-                "eps": eps,
-                "delta": delta,
-                "wd_ratio": wd_ratio
+                {
+                    "params": optim_params,
+                    "lr": lr,
+                    "beta1": beta1,
+                    "beta2": beta2,
+                    "weight_decay": wd,
+                    "nesterov": nesterov,
+                    "eps": eps,
+                    "delta": delta,
+                    "wd_ratio": wd_ratio,
                 },
-                {"params": optim_params_filter,
-                "lr": lr_filter,
-                "beta1": beta1,
-                "beta2": beta2,
-                "weight_decay": wd,
-                "nesterov": nesterov,
-                "eps": eps,
-                "delta": delta,
-                "wd_ratio": wd_ratio}
+                {
+                    "params": optim_params_filter,
+                    "lr": lr_filter,
+                    "beta1": beta1,
+                    "beta2": beta2,
+                    "weight_decay": wd,
+                    "nesterov": nesterov,
+                    "eps": eps,
+                    "delta": delta,
+                    "wd_ratio": wd_ratio,
+                },
             ]
         )
     elif optim == 'ranger':
-        optimizer = Ranger([
-                {"params": optim_params,
-                "lr": lr,
-                "beta1": beta1,
-                "beta2": beta2,
-                "weight_decay": wd,
-                "eps": eps,
-                "alpha": train_opt.get('alpha_' + name, 0.5),
-                "k": train_opt.get('k_' + name, 6),
-                "N_sma_threshhold": train_opt.get('N_sma_threshhold_' + name, 5),
-                "use_gc": train_opt.get('use_gc_' + name, True),
-                "gc_conv_only": train_opt.get('gc_conv_only_' + name, False),
-                "gc_loc": train_opt.get('gc_loc_' + name, True)
-                },
-                {"params": optim_params_filter,
-                "lr": lr_filter,
-                "beta1": beta1,
-                "beta2": beta2,
-                "weight_decay": wd,
-                "eps": eps,
-                "alpha": train_opt.get('alpha_' + name, 0.5),
-                "k": train_opt.get('k_' + name, 6),
-                "N_sma_threshhold": train_opt.get('N_sma_threshhold_' + name, 5),
-                "use_gc": train_opt.get('use_gc_' + name, True),
-                "gc_conv_only": train_opt.get('gc_conv_only_' + name, False),
-                "gc_loc": train_opt.get('gc_loc_' + name, True) }
-            ])
-    elif optim == 'madgrad':
-        optimizer = MADGRAD(
+        return Ranger(
             [
-                {"params": optim_params,
-                "lr": lr,
-                "eps": eps,
-                "momentum": momentum,
-                "weight_decay": wd,
-                "decay_type": train_opt.get('decay_type_' + name, 'AdamW'),
+                {
+                    "params": optim_params,
+                    "lr": lr,
+                    "beta1": beta1,
+                    "beta2": beta2,
+                    "weight_decay": wd,
+                    "eps": eps,
+                    "alpha": train_opt.get(f'alpha_{name}', 0.5),
+                    "k": train_opt.get(f'k_{name}', 6),
+                    "N_sma_threshhold": train_opt.get(
+                        f'N_sma_threshhold_{name}', 5
+                    ),
+                    "use_gc": train_opt.get(f'use_gc_{name}', True),
+                    "gc_conv_only": train_opt.get(
+                        f'gc_conv_only_{name}', False
+                    ),
+                    "gc_loc": train_opt.get(f'gc_loc_{name}', True),
                 },
-                {"params": optim_params_filter,
-                "lr": lr_filter,
-                "eps": eps,
-                "momentum": momentum,
-                "weight_decay": wd,
-                "decay_type": train_opt.get('decay_type_' + name, 'AdamW'),}
+                {
+                    "params": optim_params_filter,
+                    "lr": lr_filter,
+                    "beta1": beta1,
+                    "beta2": beta2,
+                    "weight_decay": wd,
+                    "eps": eps,
+                    "alpha": train_opt.get(f'alpha_{name}', 0.5),
+                    "k": train_opt.get(f'k_{name}', 6),
+                    "N_sma_threshhold": train_opt.get(
+                        f'N_sma_threshhold_{name}', 5
+                    ),
+                    "use_gc": train_opt.get(f'use_gc_{name}', True),
+                    "gc_conv_only": train_opt.get(
+                        f'gc_conv_only_{name}', False
+                    ),
+                    "gc_loc": train_opt.get(f'gc_loc_{name}', True),
+                },
+            ]
+        )
+    elif optim == 'madgrad':
+        return MADGRAD(
+            [
+                {
+                    "params": optim_params,
+                    "lr": lr,
+                    "eps": eps,
+                    "momentum": momentum,
+                    "weight_decay": wd,
+                    "decay_type": train_opt.get(f'decay_type_{name}', 'AdamW'),
+                },
+                {
+                    "params": optim_params_filter,
+                    "lr": lr_filter,
+                    "eps": eps,
+                    "momentum": momentum,
+                    "weight_decay": wd,
+                    "decay_type": train_opt.get(f'decay_type_{name}', 'AdamW'),
+                },
             ]
         )
     else: # default to 'adam'
-        optimizer = torch.optim.Adam(
+        return torch.optim.Adam(
             [
-                {"params": optim_params,
-                "lr": lr,
-                "beta1": beta1,
-                "beta2": beta2,
-                "weight_decay": wd},
-                {"params": optim_params_filter,
-                "lr": lr_filter,
-                "beta1": beta1,
-                "beta2": beta2,
-                "weight_decay": wd}
+                {
+                    "params": optim_params,
+                    "lr": lr,
+                    "beta1": beta1,
+                    "beta2": beta2,
+                    "weight_decay": wd,
+                },
+                {
+                    "params": optim_params_filter,
+                    "lr": lr_filter,
+                    "beta1": beta1,
+                    "beta2": beta2,
+                    "weight_decay": wd,
+                },
             ]
         )
-
-    return optimizer
 
 
 def get_optimizers_filter(cri_gan=None, netD=None, netG=None,

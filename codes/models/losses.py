@@ -33,40 +33,36 @@ def get_loss_fn(loss_type=None,
     # pixel / content losses
     if loss_type in ('MSE', 'l2'):
         loss_function = nn.MSELoss(reduction=reduction)
-        loss_type = 'pix-{}'.format(loss_type)
+        loss_type = f'pix-{loss_type}'
     elif loss_type in ('L1', 'l1'):
         loss_function = nn.L1Loss(reduction=reduction)
-        loss_type = 'pix-{}'.format(loss_type)
+        loss_type = f'pix-{loss_type}'
     elif loss_type == 'cb':
         loss_function = CharbonnierLoss()
-        loss_type = 'pix-{}'.format(loss_type)
+        loss_type = f'pix-{loss_type}'
     elif loss_type == 'elastic':
         loss_function = ElasticLoss(reduction=reduction)
-        loss_type = 'pix-{}'.format(loss_type)
+        loss_type = f'pix-{loss_type}'
     elif loss_type == 'relativel1':
         loss_function = RelativeL1(reduction=reduction)
-        loss_type = 'pix-{}'.format(loss_type)
-    # TODO
-    # elif loss_type == 'relativel2':
-        # loss_function = RelativeL2(reduction=reduction)
-        # loss_type = 'pix-{}'.format(loss_type)
+        loss_type = f'pix-{loss_type}'
     elif loss_type in ('l1cosinesim', 'L1CosineSim'):
         loss_function = L1CosineSim(reduction=reduction)
-        loss_type = 'pix-{}'.format(loss_type)
+        loss_type = f'pix-{loss_type}'
     elif loss_type == 'clipl1':
         loss_function = ClipL1()
-        loss_type = 'pix-{}'.format(loss_type)
+        loss_type = f'pix-{loss_type}'
     elif loss_type.find('multiscale') >= 0:
         # multiscale content/pixel loss
         ms_loss_f = get_loss_fn(
             loss_type.split('-')[1], recurrent=True, device=device)
         loss_function = MultiscalePixelLoss(loss_f=ms_loss_f)
-        loss_type = 'pix-{}'.format(loss_type)
+        loss_type = f'pix-{loss_type}'
     elif loss_type == 'fro':
         # Frobenius norm
         #TODO: pass arguments
         loss_function = FrobeniusNormLoss()
-        loss_type = 'pix-{}'.format(loss_type)
+        loss_type = f'pix-{loss_type}'
     elif loss_type in ('ssim', 'SSIM'):  # l_ssim_type
         # SSIM loss
         # TODO: pass SSIM options from opt_train
@@ -147,7 +143,7 @@ def get_loss_fn(loss_type=None,
         color_loss_f = get_loss_fn(
             loss_type.split('-')[1], recurrent=True, device=device)
         ds_f = torch.nn.AvgPool2d(kernel_size=opt['scale'])
-        loss_function = ColorLoss(loss_f=color_loss_f, ds_f=ds_f) 
+        loss_function = ColorLoss(loss_f=color_loss_f, ds_f=ds_f)
     elif loss_type.find('avg') >= 0:
         avg_loss_f = get_loss_fn(
             loss_type.split('-')[1], recurrent=True, device=device)
@@ -164,11 +160,11 @@ def get_loss_fn(loss_type=None,
         if recurrent:
             return loss_function.to(device)
         else:
-            loss = {
-                    'name': loss_type,
-                    'weight': float(weight),  # TODO: check if float is needed
-                    'function': loss_function.to(device)}
-            return loss
+            return {
+                'name': loss_type,
+                'weight': float(weight),  # TODO: check if float is needed
+                'function': loss_function.to(device),
+            }
                     
 
 def check_loss_names(pixel_criterion=None, feature_criterion=None, feature_network=None, hfen_criterion=None, tv_type=None, tv_norm=None, lpips_criterion=None, lpips_network = None):
@@ -178,23 +174,21 @@ def check_loss_names(pixel_criterion=None, feature_criterion=None, feature_netwo
     """
 
     if pixel_criterion:
-        return 'pix-{}'.format(pixel_criterion.lower())
+        return f'pix-{pixel_criterion.lower()}'
 
     if feature_criterion:
         # feature loss (VGG feature network)
         # feature_criterion:"l1" | "l2" | "cb" | "elastic" | etc
-        return 'fea-{}-{}'.format(feature_network.lower(), feature_criterion.lower())
+        return f'fea-{feature_network.lower()}-{feature_criterion.lower()}'
 
     if hfen_criterion:
-        # hfen_criterion: "l1" | "l2" | "rel_l1" | "rel_l2" | etc
-        if hfen_criterion in ('rel_l1', 'rel_l2'):  # TODO, rel_l2 not available, easy to do
-            hfen_criterion = 'hfen-relativel1'
-        # elif hfen_criterion == 'rel_l2':
-            # hfen_criterion = 'hfen-relativel2'
-            return hfen_criterion
-        else:
-            return 'hfen-{}'.format(hfen_criterion.lower())
+        if hfen_criterion not in ('rel_l1', 'rel_l2'):
+            return f'hfen-{hfen_criterion.lower()}'
 
+        hfen_criterion = 'hfen-relativel1'
+        # elif hfen_criterion == 'rel_l2':
+        # hfen_criterion = 'hfen-relativel2'
+        return hfen_criterion
     if tv_type and tv_norm:
         # get norm
         if tv_norm in (1, 'L1'):
@@ -207,12 +201,12 @@ def check_loss_names(pixel_criterion=None, feature_criterion=None, feature_netwo
         elif tv_type == '4D':
             tv_type = 'dtv'
         # final combined type
-        tv_type = '{}-{}'.format(tv_type, tv_norm)
+        tv_type = f'{tv_type}-{tv_norm}'
         return tv_type
-    
+
     if lpips_criterion and lpips_network:
         if lpips_criterion.split('-')[0] != 'fea':
-            return 'fea-lpips-{}-{}'.format(lpips_criterion,lpips_network)
+            return f'fea-lpips-{lpips_criterion}-{lpips_network}'
 
     return None
 
@@ -255,8 +249,7 @@ class PerceptualLoss(nn.Module):
         if criterion == 'lpips':
             if opt:
                 self.znorm = opt['datasets']['train'].get('znorm', False)
-                perc_opts = opt['train'].get("perceptual_opt")
-                if perc_opts:
+                if perc_opts := opt['train'].get("perceptual_opt"):
                     self.rotations = perc_opts.get('rotations', False)
                     self.flips = perc_opts.get('flips', False)
             else:
@@ -268,8 +261,7 @@ class PerceptualLoss(nn.Module):
                 train_opt = opt['train']
                 self.perceptual_weight = train_opt.get('feature_weight', 0)
                 self.style_weight = train_opt.get('style_weight', 0)
-                perc_opts = train_opt.get("perceptual_opt")
-                if perc_opts:
+                if perc_opts := train_opt.get("perceptual_opt"):
                     w_l_p = perc_opts.get('perceptual_layers', {'conv5_4': 1})
                     w_l_s = perc_opts.get('style_layers', {})
                     self.rotations = perc_opts.get('rotations', False)
@@ -281,16 +273,9 @@ class PerceptualLoss(nn.Module):
             if self.style_weight > 0:
                 # TODO: pass arguments to GramMatrix
                 self.gram_matrix = GramMatrix(out_norm='ci')
-                if not w_l_s and w_l_p:
-                    self.w_l_s = w_l_p
-                else:
-                    self.w_l_s = w_l_s
-
+                self.w_l_s = w_l_p if not w_l_s and w_l_p else w_l_s
             if self.perceptual_weight > 0:
-                if not w_l_p and w_l_s:
-                    self.w_l_p = w_l_s
-                else:
-                    self.w_l_p = w_l_p
+                self.w_l_p = w_l_s if not w_l_p and w_l_s else w_l_p
 
     def forward(self, x: torch.Tensor, y: torch.Tensor):
         if self.rotations:
@@ -316,23 +301,25 @@ class PerceptualLoss(nn.Module):
 
         # calculate perceptual loss
         if self.perceptual_weight > 0:
-            percep_loss = 0
-            for k in self.w_l_p.keys():
-                percep_loss += (
-                    self.criterion(fea_x[k], fea_y[k])
-                    *self.w_l_p[k])
+            percep_loss = sum(
+                (self.criterion(fea_x[k], fea_y[k]) * self.w_l_p[k])
+                for k in self.w_l_p.keys()
+            )
             percep_loss *= self.perceptual_weight
         else:
             percep_loss = None
 
         # calculate style loss
         if self.style_weight > 0:
-            style_loss = 0
-            for k in self.w_l_s.keys():
-                style_loss += (
-                    self.criterion(self.gram_matrix(fea_x[k]),
-                                    self.gram_matrix(fea_y[k]))
-                    *self.w_l_s[k])
+            style_loss = sum(
+                (
+                    self.criterion(
+                        self.gram_matrix(fea_x[k]), self.gram_matrix(fea_y[k])
+                    )
+                    * self.w_l_s[k]
+                )
+                for k in self.w_l_s.keys()
+            )
             style_loss *= self.style_weight
         else:
             style_loss = None
@@ -396,11 +383,8 @@ class Adversarial(nn.Module):
         else:  # normal gan
             feats_real = None
             feats_fake = None
-            pred_g_real = None
             pred_g_fake = netD(fake)
-            if self.form != "standard":
-                # must .detach() to avoid backpropagation to D
-                pred_g_real = netD(real)
+            pred_g_real = netD(real) if self.form != "standard" else None
         return pred_g_fake, pred_g_real, feats_fake, feats_real
 
     def calculate_gen_loss(self, pred_g_fake, pred_g_real=None,
@@ -434,9 +418,10 @@ class Adversarial(nn.Module):
 
         # Features Perceptual loss, extracted from the discriminator
         if self.use_featmaps:
-            l_g_disfea = 0
-            for sr_feat_map, hr_feat_map in zip(feats_fake, feats_real):
-                l_g_disfea += self.cri_disfea['function'](sr_feat_map, hr_feat_map.detach())
+            l_g_disfea = sum(
+                self.cri_disfea['function'](sr_feat_map, hr_feat_map.detach())
+                for sr_feat_map, hr_feat_map in zip(feats_fake, feats_real)
+            )
             l_g_disfea = self.cri_disfea['weight'] * l_g_disfea / len(feats_fake)
             l_g_gan += l_g_disfea
 
@@ -448,10 +433,7 @@ class Adversarial(nn.Module):
 
         # G(A) should fake the discriminator
         fake_AB = torch.cat((condition, fake), 1)  # Real A, Fake G(A)
-        real_AB = None
-        if real is not None:
-            real_AB = torch.cat((condition, real), 1)  # Real A, Real B
-
+        real_AB = torch.cat((condition, real), 1) if real is not None else None
         return self.regular_generator(netD, fake_AB, real_AB)
 
     def regular_generator(self, netD, fake, real=None):
@@ -462,11 +444,9 @@ class Adversarial(nn.Module):
             netD, fake, real)
         pred_g_fake, pred_g_real, feats_fake, feats_real = predictions
 
-        # calculate generator loss
-        l_g_gan = self.calculate_gen_loss(
-            pred_g_fake, pred_g_real, feats_fake, feats_real)
-
-        return l_g_gan
+        return self.calculate_gen_loss(
+            pred_g_fake, pred_g_real, feats_fake, feats_real
+        )
 
     def get_predictions_dis(self, netD, fake, real):
         """Get discriminator logits."""

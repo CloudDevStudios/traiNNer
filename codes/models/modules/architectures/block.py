@@ -137,9 +137,7 @@ def add_spectral_norm(module, use_spectral_norm=False):
     """ Add spectral norm to any module passed if use_spectral_norm = True,
     else, returns the original module without change
     """
-    if use_spectral_norm:
-        return nn.utils.spectral_norm(module)
-    return module
+    return nn.utils.spectral_norm(module) if use_spectral_norm else module
 
 
 def pad(pad_type, padding):
@@ -163,8 +161,7 @@ def pad(pad_type, padding):
 
 def get_valid_padding(kernel_size, dilation):
     kernel_size = kernel_size + (kernel_size - 1) * (dilation - 1)
-    padding = (kernel_size - 1) // 2
-    return padding
+    return (kernel_size - 1) // 2
 
 
 class ConcatBlock(nn.Module):
@@ -174,8 +171,7 @@ class ConcatBlock(nn.Module):
         self.sub = submodule
 
     def forward(self, x):
-        output = torch.cat((x, self.sub(x)), dim=1)
-        return output
+        return torch.cat((x, self.sub(x)), dim=1)
 
     def __repr__(self):
         return 'Identity .. \n|' + self.sub.__repr__().replace('\n', '\n|')
@@ -188,8 +184,7 @@ class ShortcutBlock(nn.Module):
         self.sub = submodule
 
     def forward(self, x):
-        output = x + self.sub(x)
-        return output
+        return x + self.sub(x)
 
     def __repr__(self):
         return 'Identity + \n|' + self.sub.__repr__().replace('\n', '\n|')
@@ -204,8 +199,7 @@ def sequential(*args):
     modules = []
     for module in args:
         if isinstance(module, nn.Sequential):
-            for submodule in module.children():
-                modules.append(submodule)
+            modules.extend(iter(module.children()))
         elif isinstance(module, nn.Module):
             modules.append(module)
     return nn.Sequential(*modules)
@@ -264,9 +258,7 @@ def make_layer(basic_block, num_basic_block, **kwarg):
     Returns:
         nn.Sequential: Stacked blocks in nn.Sequential.
     """
-    layers = []
-    for _ in range(num_basic_block):
-        layers.append(basic_block(**kwarg))
+    layers = [basic_block(**kwarg) for _ in range(num_basic_block)]
     return nn.Sequential(*layers)
 
 
@@ -364,10 +356,10 @@ class Upsample(nn.Module):
 
     def extra_repr(self):
         if self.scale_factor is not None:
-            info = 'scale_factor=' + str(self.scale_factor)
+            info = f'scale_factor={str(self.scale_factor)}'
         else:
-            info = 'size=' + str(self.size)
-        info += ', mode=' + self.mode
+            info = f'size={str(self.size)}'
+        info += f', mode={self.mode}'
         return info
 
 
@@ -532,7 +524,7 @@ def space_to_depth(x, bs:int=2):
         return x
 
     b, c, h, w = x.size()
-    assert h % bs == 0 and w % bs == 0, "{}".format((h, w, bs))
+    assert h % bs == 0 and w % bs == 0, f"{(h, w, bs)}"
     new_d = -1  # c * (bs**2)
     new_h = h // bs
     new_w = w // bs
@@ -560,7 +552,7 @@ def space_to_depth_tf(x, bs:int=2):
         return x
 
     b, c, h, w = x.size()
-    assert h % bs == 0 and w % bs == 0, "{}".format((h, w, bs))
+    assert h % bs == 0 and w % bs == 0, f"{(h, w, bs)}"
     new_d = -1  # c * (bs**2)
     new_h = h // bs
     new_w = w // bs
@@ -625,7 +617,7 @@ class minibatch_std_concat_layer(nn.Module):
             if len(shape) == 4:
                 vals = mean(vals, axis=[2,3], keepdim=True)             # torch.mean(torch.mean(vals, 2, keepdim=True), 3, keepdim=True)
         elif self.averaging == 'none':
-            target_shape = [target_shape[0]] + [s for s in target_shape[1:]]
+            target_shape = [target_shape[0]] + list(target_shape[1:])
         elif self.averaging == 'gpool':
             if len(shape) == 4:
                 vals = mean(x, [0,2,3], keepdim=True)                   # torch.mean(torch.mean(torch.mean(x, 2, keepdim=True), 3, keepdim=True), 0, keepdim=True)
@@ -702,11 +694,7 @@ class SelfAttentionBlock(nn.Module):
                 attention: B X N X N (N is Width*Height)
         """
 
-        if self.max_pool:  # Downscale with Max Pool
-            x = self.pooled(input)
-        else:
-            x = input
-
+        x = self.pooled(input) if self.max_pool else input
         batch_size, C, width, height = x.size()
 
         N = width * height
@@ -734,8 +722,5 @@ class SelfAttentionBlock(nn.Module):
         # add original input
         out = self.gamma*out + input
 
-        if self.ret_attention:
-            return out, attention
-        else:
-            return out
+        return (out, attention) if self.ret_attention else out
 

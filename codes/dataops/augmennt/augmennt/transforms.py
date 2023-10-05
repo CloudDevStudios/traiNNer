@@ -70,7 +70,7 @@ class Compose:
         return img
 
     def __repr__(self):
-        format_string = self.__class__.__name__ + '('
+        format_string = f'{self.__class__.__name__}('
         for t in self.transforms:
             format_string += '\n'
             format_string += '    {0}'.format(t)
@@ -95,7 +95,7 @@ class ToTensor:
         return F.to_tensor(pic)
 
     def __repr__(self):
-        return self.__class__.__name__ + '()'
+        return f'{self.__class__.__name__}()'
 
 
 class ToCVImage:
@@ -177,8 +177,8 @@ class Resize:
                 size = tuple(size)
             self.size = size
         else:
-            raise ValueError('Unknown inputs for size: {}'.format(size))
-           
+            raise ValueError(f'Unknown inputs for size: {size}')
+
         self.interpolation = interpolation
 
     def __call__(self, img):
@@ -264,8 +264,9 @@ class Pad:
         assert isinstance(fill, (numbers.Number, str, tuple))
         assert padding_mode in ['constant', 'edge', 'reflect', 'symmetric']
         if isinstance(padding, collections.Sequence) and len(padding) not in [2, 4]:
-            raise ValueError("Padding must be an int or a 2, or 4 element tuple, not a " +
-                             "{} element tuple".format(len(padding)))
+            raise ValueError(
+                f"Padding must be an int or a 2, or 4 element tuple, not a {len(padding)} element tuple"
+            )
 
         self.padding = padding
         self.fill = fill
@@ -302,7 +303,7 @@ class Lambda:
         return self.lambd(img)
 
     def __repr__(self):
-        return self.__class__.__name__ + '()'
+        return f'{self.__class__.__name__}()'
 
 class RandomTransforms:
     """Base class for a list of transformations with randomness
@@ -318,7 +319,7 @@ class RandomTransforms:
         raise NotImplementedError()
 
     def __repr__(self):
-        format_string = self.__class__.__name__ + '('
+        format_string = f'{self.__class__.__name__}('
         for t in self.transforms:
             format_string += '\n'
             format_string += '    {0}'.format(t)
@@ -345,8 +346,8 @@ class RandomApply(RandomTransforms):
         return img
 
     def __repr__(self):
-        format_string = self.__class__.__name__ + '('
-        format_string += '\n    p={}'.format(self.p)
+        format_string = f'{self.__class__.__name__}('
+        format_string += f'\n    p={self.p}'
         for t in self.transforms:
             format_string += '\n'
             format_string += '    {0}'.format(t)
@@ -421,7 +422,7 @@ class RandomCrop:
         Returns:
             tuple: params (i, j, h, w) to be passed to ``crop`` for random crop.
         """
-        h,w = img.shape[0:2] #h, w, _ = img.shape
+        h,w = img.shape[:2]
         th, tw = output_size
         if w == tw and h == th:
             return 0, 0, h, w
@@ -483,12 +484,10 @@ class RandomHorizontalFlip:
             numpy ndarray: Randomly flipped image.
         """
         
-        if random.random() < self.p:
-            return F.hflip(img)
-        return img
+        return F.hflip(img) if random.random() < self.p else img
 
     def __repr__(self):
-        return self.__class__.__name__ + '(p={})'.format(self.p)
+        return f'{self.__class__.__name__}(p={self.p})'
 
 
 class RandomVerticalFlip:
@@ -508,12 +507,10 @@ class RandomVerticalFlip:
         Returns:
             numpy ndarray: Randomly flipped image.
         """
-        if random.random() < self.p:
-            return F.vflip(img)
-        return img
+        return F.vflip(img) if random.random() < self.p else img
 
     def __repr__(self):
-        return self.__class__.__name__ + '(p={})'.format(self.p)
+        return f'{self.__class__.__name__}(p={self.p})'
 
 
 class RandomResizedCrop:
@@ -550,7 +547,7 @@ class RandomResizedCrop:
             tuple: params (i, j, h, w) to be passed to ``crop`` for a random
                 sized crop.
         """
-        for attempt in range(10):
+        for _ in range(10):
             area = img.shape[0] * img.shape[1]
             target_area = random.uniform(*scale) * area
             aspect_ratio = random.uniform(*ratio)
@@ -710,17 +707,21 @@ class LinearTransformation:
             Tensor: Transformed image.
         """
         if tensor.size(0) * tensor.size(1) * tensor.size(2) != self.transformation_matrix.size(0):
-            raise ValueError("tensor and transformation matrix have incompatible shape." +
-                             "[{} x {} x {}] != ".format(*tensor.size()) +
-                             "{}".format(self.transformation_matrix.size(0)))
+            raise ValueError(
+                (
+                    "tensor and transformation matrix have incompatible shape."
+                    + "[{} x {} x {}] != ".format(*tensor.size())
+                    + f"{self.transformation_matrix.size(0)}"
+                )
+            )
         flat_tensor = tensor.view(1, -1)
         transformed_tensor = torch.mm(flat_tensor, self.transformation_matrix)
         tensor = transformed_tensor.view(tensor.size())
         return tensor
 
     def __repr__(self):
-        format_string = self.__class__.__name__ + '('
-        format_string += (str(self.transformation_matrix.numpy().tolist()) + ')')
+        format_string = f'{self.__class__.__name__}('
+        format_string += f'{str(self.transformation_matrix.numpy().tolist())})'
         return format_string
 
 
@@ -759,15 +760,17 @@ class ColorJitter:
     def _check_input(self, value, name, center=1, bound=(0, float('inf')), clip_first_on_zero=True):
         if isinstance(value, numbers.Number):
             if value < 0:
-                raise ValueError("If {} is a single number, it must be non negative.".format(name))
+                raise ValueError(f"If {name} is a single number, it must be non negative.")
             value = [center - value, center + value]
             if clip_first_on_zero:
                 value[0] = max(value[0], 0)
         elif isinstance(value, (tuple, list)) and len(value) == 2:
             if not bound[0] <= value[0] <= value[1] <= bound[1]:
-                raise ValueError("{} values should be between {}".format(name, bound))
+                raise ValueError(f"{name} values should be between {bound}")
         else:
-            raise TypeError("{} should be a single number or a list/tuple with length 2.".format(name))
+            raise TypeError(
+                f"{name} should be a single number or a list/tuple with length 2."
+            )
 
         # if value is 0 or (1., 1.) for brightness/contrast/saturation
         # or (0., 0.) for hue, do nothing
@@ -807,9 +810,7 @@ class ColorJitter:
             transforms.append(Lambda(lambda img: F.adjust_hue(img, hue_factor)))
 
         random.shuffle(transforms)
-        transform = Compose(transforms)
-
-        return transform
+        return Compose(transforms)
 
     def __call__(self, img):
         """
@@ -823,7 +824,7 @@ class ColorJitter:
         return transform(img)
 
     def __repr__(self):
-        format_string = self.__class__.__name__ + '('
+        format_string = f'{self.__class__.__name__}('
         format_string += 'brightness={0}'.format(self.brightness)
         format_string += ', contrast={0}'.format(self.contrast)
         format_string += ', saturation={0}'.format(self.saturation)
@@ -855,11 +856,11 @@ class RandomRotation:
             if degrees < 0:
                 raise ValueError("If degrees is a single number, it must be positive.")
             self.degrees = (-degrees, degrees)
-        else:
-            if len(degrees) != 2:
-                raise ValueError("If degrees is a sequence, it must be of len 2.")
+        elif len(degrees) == 2:
             self.degrees = degrees
 
+        else:
+            raise ValueError("If degrees is a sequence, it must be of len 2.")
         self.resample = resample
         self.expand = expand
         self.center = center
@@ -871,9 +872,7 @@ class RandomRotation:
         Returns:
             sequence: params to be passed to ``rotate`` for random rotation.
         """
-        angle = random.uniform(degrees[0], degrees[1])
-
-        return angle
+        return random.uniform(degrees[0], degrees[1])
 
     def __call__(self, img):
         """
@@ -927,12 +926,12 @@ class RandomAffine:
             self.degrees = (-degrees, degrees)
         else:
             assert isinstance(degrees, (tuple, list)) and len(degrees) == 2, \
-                "degrees should be a list or tuple and it must be of length 2."
+                    "degrees should be a list or tuple and it must be of length 2."
             self.degrees = degrees
 
         if translate is not None:
             assert isinstance(translate, (tuple, list)) and len(translate) == 2, \
-                "translate should be a list or tuple and it must be of length 2."
+                    "translate should be a list or tuple and it must be of length 2."
             for t in translate:
                 if not (0.0 <= t <= 1.0):
                     raise ValueError("translation values should be between 0 and 1")
@@ -940,24 +939,23 @@ class RandomAffine:
 
         if scale is not None:
             assert isinstance(scale, (tuple, list)) and len(scale) == 2, \
-                "scale should be a list or tuple and it must be of length 2."
+                    "scale should be a list or tuple and it must be of length 2."
             for s in scale:
                 if s <= 0:
                     raise ValueError("scale values should be positive")
         self.scale = scale
 
-        if shear is not None:
-            if isinstance(shear, numbers.Number):
-                if shear < 0:
-                    raise ValueError("If shear is a single number, it must be positive.")
-                self.shear = (-shear, shear)
-            else:
-                assert isinstance(shear, (tuple, list)) and len(shear) == 2, \
-                    "shear should be a list or tuple and it must be of length 2."
-                self.shear = shear
-        else:
+        if shear is None:
             self.shear = shear
 
+        elif isinstance(shear, numbers.Number):
+            if shear < 0:
+                raise ValueError("If shear is a single number, it must be positive.")
+            self.shear = (-shear, shear)
+        else:
+            assert isinstance(shear, (tuple, list)) and len(shear) == 2, \
+                    "shear should be a list or tuple and it must be of length 2."
+            self.shear = shear
         # self.resample = resample
         self.interpolation = interpolation
         self.fillcolor = fillcolor
@@ -975,7 +973,7 @@ class RandomAffine:
             # max_dx = translate[0] * img_size[1]
             max_dy = translate[1] * img_size[1]
             # max_dy = translate[1] * img_size[0]
-            
+
             translations = (np.round(random.uniform(-max_dx, max_dx)),
                             np.round(random.uniform(-max_dy, max_dy)))
         else:
@@ -986,11 +984,7 @@ class RandomAffine:
         else:
             scale = 1.0
 
-        if shears is not None:
-            shear = random.uniform(shears[0], shears[1])
-        else:
-            shear = 0.0
-
+        shear = random.uniform(shears[0], shears[1]) if shears is not None else 0.0
         return angle, translations, scale, shear
 
     def __call__(self, img):
@@ -1074,8 +1068,8 @@ class RandomGrayscale:
             numpy ndarray: Randomly grayscaled image.
 
         """
-        num_output_channels = 3
         if random.random() < self.p:
+            num_output_channels = 3
             return F.to_grayscale(img, num_output_channels=num_output_channels)
         return img
 
@@ -1240,7 +1234,7 @@ class RandomErasing:
         Returns:
             tuple: params (i, j, h, w, v) to be passed to ``erase`` for random erasing.
         """
-        img_h, img_w = img.shape[0:2]
+        img_h, img_w = img.shape[:2]
         area = img_h * img_w
 
         erase_area = np.random.uniform(scale[0], scale[1]) * area
@@ -1251,18 +1245,15 @@ class RandomErasing:
 
         h = int(np.sqrt(erase_area / aspect_ratio))
         #h = int(round(math.sqrt(erase_area * aspect_ratio)))
-        if h > img_h - 1:
-            h = img_h - 1
+        h = min(h, img_h - 1)
         w = int(aspect_ratio * h)
         #w = int(round(math.sqrt(erase_area / aspect_ratio)))
-        if w > img_w - 1:
-            w = img_w - 1
-
+        w = min(w, img_w - 1)
         i = np.random.randint(0, img_h - h)
         #i = random.randint(0, img_h - h)
         j = np.random.randint(0, img_w - w)
         #j = random.randint(0, img_w - w)
-        
+
         #return functional parameters
         return i, j, h, w, value
 
@@ -1278,30 +1269,32 @@ class RandomErasing:
         Returns:
             img (Tensor): Erased Tensor image.
         """
-        if random.uniform(0, 1) < self.p: #np.random.rand() > p:
-            x, y, h, w, v = self.get_params(img, scale=self.scale, ratio=self.ratio, value=self.value)
+        if random.uniform(0, 1) >= self.p:
+            return img
+        x, y, h, w, v = self.get_params(img, scale=self.scale, ratio=self.ratio, value=self.value)
 
-            if v == 0 and mode:
-                #if mode is list (mode=[0,1,2]), can random choose one, otherwise use the single mode sent 
-                if type(mode) is list: 
-                    mode = random.choice(mode)
-                assert isinstance(mode, int), 'mode should be an int or a list of ints. Got {}'.format(type(mode))
-                #mode 0 fills with a random number, mode 1 fills with ImageNet mean values, mode 2 fills with random pixel values (noise)
-                if mode == 0: # original code , random single color
-                    v = np.random.uniform(0., 255.)
-                elif mode == 1: # use ImageNet mean pixel values for each channel 
-                    if img.shape[2] == 3:
-                        v=[0.4465*255, 0.4822*255, 0.4914*255] #OpenCV follows BGR convention and PIL follows RGB color convention
-                    else: 
-                        v=[0.4914*255]
-                elif mode == 2: # replace with random pixel values (noise) (With the selected erasing region Ie, each pixel in Ie is assigned to a random value in [0, 1], respectively.)
-                    v = np.random.rand(np.abs(h), np.abs(w), img.shape[2])*255
-                elif mode == 3: # from cutout, the image mean
-                    v = img.mean()
-                else: #leave at the default, mask_value = 0
-                    v = 0 
-            return F.erase(img, x, y, h, w, v, self.inplace)
-        return img
+        if v == 0 and mode:
+            #if mode is list (mode=[0,1,2]), can random choose one, otherwise use the single mode sent 
+            if type(mode) is list: 
+                mode = random.choice(mode)
+            assert isinstance(
+                mode, int
+            ), f'mode should be an int or a list of ints. Got {type(mode)}'
+            #mode 0 fills with a random number, mode 1 fills with ImageNet mean values, mode 2 fills with random pixel values (noise)
+            if mode == 0: # original code , random single color
+                v = np.random.uniform(0., 255.)
+            elif mode == 1: # use ImageNet mean pixel values for each channel 
+                if img.shape[2] == 3:
+                    v=[0.4465*255, 0.4822*255, 0.4914*255] #OpenCV follows BGR convention and PIL follows RGB color convention
+                else: 
+                    v=[0.4914*255]
+            elif mode == 2: # replace with random pixel values (noise) (With the selected erasing region Ie, each pixel in Ie is assigned to a random value in [0, 1], respectively.)
+                v = np.random.rand(np.abs(h), np.abs(w), img.shape[2])*255
+            elif mode == 3: # from cutout, the image mean
+                v = img.mean()
+            else: #leave at the default, mask_value = 0
+                v = 0
+        return F.erase(img, x, y, h, w, v, self.inplace)
 
 
 #############################################################################################
@@ -1498,12 +1491,10 @@ class RandomBase:
         Returns:
             np.ndarray: Randomly transformed image.
         """
-        if random.random() < self.p:
-            return self.apply(image, **self.params)
-        return image
+        return self.apply(image, **self.params) if random.random() < self.p else image
 
     def __repr__(self):
-        return self.__class__.__name__ + '(p={})'.format(self.p)
+        return f'{self.__class__.__name__}(p={self.p})'
 
 
 class RandomGaussianNoise(RandomBase):
@@ -1575,10 +1566,7 @@ class RandomGaussianNoise(RandomBase):
 
         gtype = 'color' if random.random() < self.prob_color else 'gray'
 
-        multi = False
-        if self.multi and random.random() > 0.66 and gtype == 'color':
-            # will only apply MC-AWGN 33% of the time
-            multi = True
+        multi = bool(self.multi and random.random() > 0.66 and gtype == 'color')
         if multi:
             lim = self.var_limit
             sigma = [random.uniform(lim[0], lim[1]) for _ in range(3)]
@@ -1588,15 +1576,16 @@ class RandomGaussianNoise(RandomBase):
             # ref wide range: (4, 200)
             var = random.uniform(self.var_limit[0], self.var_limit[1])
 
-            if self.mode == "gauss":
-                if self.sigma_calc == 'var':
-                    sigma = (var ** 0.5)
-                elif self.sigma_calc == 'sig':
-                    # no need to var/255 if image range in [0,255]
-                    sigma = var
-            elif self.mode == "speckle":
+            if (
+                self.mode == "gauss"
+                and self.sigma_calc == 'sig'
+                or self.mode != "gauss"
+                and self.mode == "speckle"
+            ):
+                # no need to var/255 if image range in [0,255]
                 sigma = var
-
+            elif self.mode == "gauss" and self.sigma_calc == 'var':
+                sigma = (var ** 0.5)
         return {"mean": self.mean,
                 "std": sigma,
                 "mode": self.mode,
@@ -1765,7 +1754,7 @@ class RandomQuantize(RandomBase):
         return EF.km_quantize(image, self.num_colors)
 
     def __repr__(self):
-        return self.__class__.__name__ + '(p={})'.format(self.p)
+        return f'{self.__class__.__name__}(p={self.p})'
 
 
 class RandomQuantizeSOM(RandomBase):
@@ -1787,10 +1776,7 @@ class RandomQuantizeSOM(RandomBase):
         learning_rate:float=0.2, neighborhood_function:str='bubble'):
         super(RandomQuantizeSOM, self).__init__(p=p)
 
-        if not num_colors:
-            N = int(np.random.uniform(2, 8))
-        else:
-            N = int(num_colors/2)
+        N = int(np.random.uniform(2, 8)) if not num_colors else int(num_colors/2)
         # assert isinstance(N, numbers.Number) and N >= 0, 'N should be a positive value'
         # input_len corresponds to the shape of the pixels array (H, W, C)
         # x and y are the "palette" matrix shape. x=2, y=N means 2xN final colors, but
@@ -1829,7 +1815,7 @@ class RandomQuantizeSOM(RandomBase):
         return np.clip(clustered, 0, img_max).astype(img_type)
 
     def __repr__(self):
-        return self.__class__.__name__ + '(p={})'.format(self.p)
+        return f'{self.__class__.__name__}(p={self.p})'
 
 
 class BlurBase:
@@ -1924,16 +1910,12 @@ class BlurBase:
         """
         h = min(image.shape[0], image.shape[1])
         if random.random() < self.p:
-            if not self.params:
-                # TODO: can remove if using valid_kernel()
-                params = self.get_params(h)
-            else:
-                params = self.params
+            params = self.get_params(h) if not self.params else self.params
             return self.apply(image, **params)
         return image
 
     def __repr__(self):
-        return self.__class__.__name__ + f'(kind={self.kind}, p={self.p})'
+        return f'{self.__class__.__name__}(kind={self.kind}, p={self.p})'
 
 
 class RandomAverageBlur(BlurBase):
@@ -2103,10 +2085,7 @@ class RandomMotionBlur:
         """
         h = min(image.shape[0], image.shape[1])
         if random.random() < self.p:
-            if not self.params:
-                params = self.get_params(h)
-            else:
-                params = self.params
+            params = self.get_params(h) if not self.params else self.params
             return self.apply(image, **params)
         return image
 
@@ -2161,7 +2140,7 @@ class RandomComplexMotionBlur:
 
         # super size first and then downscale at the end for better
         # anti-aliasing
-        self.SIZEx2 = tuple([2 * i for i in size])
+        self.SIZEx2 = tuple(2 * i for i in size)
 
         # getting length of kernel diagonal
         # DIAGONAL = (x**2 + y**2)**0.5
@@ -2213,10 +2192,7 @@ class RandomComplexMotionBlur:
         """
         h = min(image.shape[0], image.shape[1])
         if random.random() < self.p:
-            if not self.params:
-                params = self.get_params(h)
-            else:
-                params = self.params
+            params = self.get_params(h) if not self.params else self.params
             return self.apply(image, **params)
         return image
 
@@ -2338,15 +2314,12 @@ class FilterColorBalance:
             np.ndarray: Randomly noised image.
         """
         if random.random() < self.p:
-            if self.random_params:
-                percent = self.get_params(self.percent)
-            else:
-                percent = self.percent
+            percent = self.get_params(self.percent) if self.random_params else self.percent
             return EF.filter_colorbalance(img, percent)
         return img
 
     def __repr__(self):
-        return self.__class__.__name__ + '(p={})'.format(self.p)
+        return f'{self.__class__.__name__}(p={self.p})'
 
 
 class FilterUnsharp:
@@ -2384,7 +2357,7 @@ class FilterUnsharp:
         return img
 
     def __repr__(self):
-        return self.__class__.__name__ + '(p={})'.format(self.p)
+        return f'{self.__class__.__name__}(p={self.p})'
 
 
 class FilterCanny(RandomBase):
@@ -2456,7 +2429,9 @@ class ApplyKernel:
             self.kformat = kformat
             self.kernels_path = fetch_kernels(
                 kernels_path=kernels_path, pattern=pattern, scale=scale)
-            assert self.kernels_path, "No kernels found for scale {} in path {}.".format(scale, kernels_path)
+            assert (
+                self.kernels_path
+            ), f"No kernels found for scale {scale} in path {kernels_path}."
 
             self.num_kernel = len(self.kernels_path)
 
@@ -2483,12 +2458,11 @@ class ApplyKernel:
         else:
             # randomly select a kernel from the list
             kernel_path = self.kernels_path[np.random.randint(0, self.num_kernel)]
-            if self.kformat == 'npy':
-                with open(kernel_path, 'rb') as f:
-                    kernel = np.load(f)
-            else:
+            if self.kformat != 'npy':
                 raise TypeError(f"Unsupported kernel format: {self.kformat}")
 
+            with open(kernel_path, 'rb') as f:
+                kernel = np.load(f)
             # making sure the kernel size (receptive field) is 13x13
             kernel = self.pre_process(kernel)
             # normalize to make cropped kernel sum 1 again
@@ -2560,18 +2534,16 @@ class RandomAnIsoBlur(ApplyKernel):
         sigmaY = random.uniform(*self.sigmaY) if self.sigmaY else sigmaX
         sigma = (sigmaX, sigmaY)
 
-        params = {
+        return {
             "kernel_size": kernel_size,
             "sigma": sigma,
             "angle": random.uniform(*self.angle) if self.angle else 0,
             "noise": self.noise,
             "sf": self.scale,
-            }
-
-        return params
+        }
 
     def __repr__(self):
-        return self.__class__.__name__ + f'(p={self.p})'
+        return f'{self.__class__.__name__}(p={self.p})'
 
 
 class AlignedDownsample(RandomAnIsoBlur):
@@ -2631,15 +2603,13 @@ class RandomSincBlur(ApplyKernel):
             min_cutoff = np.pi / 3 if kernel_size < 13 else np.pi / 5
             cutoff = random.uniform(*to_tuple(np.pi, low=min_cutoff))
 
-        params = {
+        return {
             "kernel_size": kernel_size,
             "cutoff": cutoff,
-            }
-
-        return params
+        }
 
     def __repr__(self):
-        return self.__class__.__name__ + f'(p={self.p})'
+        return f'{self.__class__.__name__}(p={self.p})'
 
 
 class CLAHE(RandomBase):
@@ -2888,7 +2858,7 @@ class RandomChromaticAberration(RandomBase):
         return im_ca
 
     def __repr__(self):
-        return self.__class__.__name__ + '(p={})'.format(self.p)
+        return f'{self.__class__.__name__}(p={self.p})'
 
 
 class RandomCameraNoise(RandomBase):
@@ -2953,5 +2923,5 @@ class RandomCameraNoise(RandomBase):
         return EF.camera_noise(img, **params)
 
     def __repr__(self):
-        return self.__class__.__name__ + '(p={})'.format(self.p)
+        return f'{self.__class__.__name__}(p={self.p})'
 

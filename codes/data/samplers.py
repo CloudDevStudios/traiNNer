@@ -66,11 +66,7 @@ class MultiSampler(BatchSampler):
                 boundaries, weights=weights, k=1)[0]
 
             bd_idx = boundaries.index(r_bd)
-            if bd_idx == 0:
-                l_bd = 0
-            else:
-                l_bd = boundaries[bd_idx-1]
-
+            l_bd = 0 if bd_idx == 0 else boundaries[bd_idx-1]
             idx_sampler = idx[l_bd:r_bd]
             rng = np.random.default_rng()
             rng.shuffle(idx_sampler)
@@ -91,18 +87,20 @@ class MultiSampler(BatchSampler):
             idx_list = idx.tolist()
             res_idx = set(idx_list)
 
-            rem_idx = []
-            for rid in idx:
-                if ((rid < l_bd or rid >= r_bd)
-                    and rid in res_idx 
-                    and rid not in sampler_idx_set):
-                    rem_idx.append(rid)
-            
-            new_idx_list = []
-            for i, x in enumerate(idx_list):
-                if i not in sampler_idx_set and i in res_idx:
-                    new_idx_list.append(i)
-
+            rem_idx = [
+                rid
+                for rid in idx
+                if (
+                    (rid < l_bd or rid >= r_bd)
+                    and rid in res_idx
+                    and rid not in sampler_idx_set
+                )
+            ]
+            new_idx_list = [
+                i
+                for i, x in enumerate(idx_list)
+                if i not in sampler_idx_set and i in res_idx
+            ]
             idx = np.unique(np.sort(np.array(new_idx_list+rem_idx)))
             batches.append(sampler_idx_list)
 
@@ -113,9 +111,7 @@ class MultiSampler(BatchSampler):
         return batches
     
     def __iter__(self):
-        batches = self._get_batches()
-        for b in batches: 
-            yield b
+        yield from self._get_batches()
     
     def __len__(self):
         return self.n_batches

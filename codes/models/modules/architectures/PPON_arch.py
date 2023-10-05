@@ -106,9 +106,7 @@ class _ResBlock_32(nn.Module):
 
         combine = torch.cat([d1, add1, add2, add3, add4, add5, add6, add7], 1)
         output2 = self.c2(self.act(combine))
-        output = input + output2.mul(0.2)
-
-        return output
+        return input + output2.mul(0.2)
 
 class RRBlock_32(nn.Module):
     def __init__(self):

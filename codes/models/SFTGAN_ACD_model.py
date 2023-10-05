@@ -86,25 +86,23 @@ class SFTGAN_ACD_Model(BaseModel):
                 else:
                     optim_params_other.append(v)
             self.optimizer_G_SFT = torch.optim.Adam(optim_params_SFT, lr=train_opt['lr_G']*5, \
-                weight_decay=wd_G, betas=(train_opt['beta1_G'], 0.999))
+                    weight_decay=wd_G, betas=(train_opt['beta1_G'], 0.999))
             self.optimizer_G_other = torch.optim.Adam(optim_params_other, lr=train_opt['lr_G'], \
-                weight_decay=wd_G, betas=(train_opt['beta1_G'], 0.999))
+                    weight_decay=wd_G, betas=(train_opt['beta1_G'], 0.999))
             self.optimizers.append(self.optimizer_G_SFT)
             self.optimizers.append(self.optimizer_G_other)
             # D
             wd_D = train_opt['weight_decay_D'] if train_opt['weight_decay_D'] else 0
             self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=train_opt['lr_D'], \
-                weight_decay=wd_D, betas=(train_opt['beta1_D'], 0.999))
+                    weight_decay=wd_D, betas=(train_opt['beta1_D'], 0.999))
             self.optimizers.append(self.optimizer_D)
 
-            # schedulers
-            if train_opt['lr_scheme'] == 'MultiStepLR':
-                for optimizer in self.optimizers:
-                    self.schedulers.append(lr_scheduler.MultiStepLR(optimizer, \
-                        train_opt['lr_steps'], train_opt['lr_gamma']))
-            else:
+            if train_opt['lr_scheme'] != 'MultiStepLR':
                 raise NotImplementedError('MultiStepLR learning rate scheme is enough.')
 
+            for optimizer in self.optimizers:
+                self.schedulers.append(lr_scheduler.MultiStepLR(optimizer, \
+                        train_opt['lr_steps'], train_opt['lr_gamma']))
             self.log_dict = OrderedDict()
         # print network
         self.print_network()
@@ -216,10 +214,9 @@ class SFTGAN_ACD_Model(BaseModel):
         # G
         s, n = self.get_network_description(self.netG)
         if isinstance(self.netG, nn.DataParallel):
-            net_struc_str = '{} - {}'.format(self.netG.__class__.__name__,
-                                             self.netG.module.__class__.__name__)
+            net_struc_str = f'{self.netG.__class__.__name__} - {self.netG.module.__class__.__name__}'
         else:
-            net_struc_str = '{}'.format(self.netG.__class__.__name__)
+            net_struc_str = f'{self.netG.__class__.__name__}'
 
         logger.info('Network G structure: {}, with parameters: {:,d}'.format(net_struc_str, n))
         logger.info(s)
@@ -227,10 +224,9 @@ class SFTGAN_ACD_Model(BaseModel):
             # D
             s, n = self.get_network_description(self.netD)
             if isinstance(self.netD, nn.DataParallel):
-                net_struc_str = '{} - {}'.format(self.netD.__class__.__name__,
-                                                self.netD.module.__class__.__name__)
+                net_struc_str = f'{self.netD.__class__.__name__} - {self.netD.module.__class__.__name__}'
             else:
-                net_struc_str = '{}'.format(self.netD.__class__.__name__)
+                net_struc_str = f'{self.netD.__class__.__name__}'
 
             logger.info('Network D structure: {}, with parameters: {:,d}'.format(net_struc_str, n))
             logger.info(s)
@@ -238,10 +234,9 @@ class SFTGAN_ACD_Model(BaseModel):
             if self.cri_fea:  # F, Perceptual Network
                 s, n = self.get_network_description(self.netF)
                 if isinstance(self.netF, nn.DataParallel):
-                    net_struc_str = '{} - {}'.format(self.netF.__class__.__name__,
-                                                    self.netF.module.__class__.__name__)
+                    net_struc_str = f'{self.netF.__class__.__name__} - {self.netF.module.__class__.__name__}'
                 else:
-                    net_struc_str = '{}'.format(self.netF.__class__.__name__)
+                    net_struc_str = f'{self.netF.__class__.__name__}'
 
                 logger.info('Network F structure: {}, with parameters: {:,d}'.format(net_struc_str, n))
                 logger.info(s)

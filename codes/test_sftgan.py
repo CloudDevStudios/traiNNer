@@ -14,26 +14,21 @@ from dataops.imresize import resize as imresize
 model_path = '../experiments/pretrained_models/SFTGAN_bicx4_noBN_OST_bg.pth'  # pytorch training
 
 test_img_folder_name = 'samples'  # image folder name
-test_img_folder = '../data/' + test_img_folder_name  # HR images
-test_prob_path = '../data/' + test_img_folder_name + '_segprob'  # probability maps
-save_result_path = '../data/' + test_img_folder_name + '_result'  # results
+test_img_folder = f'../data/{test_img_folder_name}'
+test_prob_path = f'../data/{test_img_folder_name}_segprob'
+save_result_path = f'../data/{test_img_folder_name}_result'
 
 # make dirs
 util.mkdirs([save_result_path])
 
-if 'torch' in model_path:  # torch version
-    model = sft.SFT_Net_torch()
-else:
-    model = sft.SFT_Net()
+model = sft.SFT_Net_torch() if 'torch' in model_path else sft.SFT_Net()
 model.load_state_dict(torch.load(model_path), strict=True)
 model.eval()
 model = model.cuda()
 
 print('sftgan testing...')
 
-idx = 0
-for path in glob.glob(test_img_folder + '/*'):
-    idx += 1
+for idx, path in enumerate(glob.glob(f'{test_img_folder}/*'), start=1):
     basename = os.path.basename(path)
     base = os.path.splitext(basename)[0]
     print(idx, base)
@@ -50,7 +45,7 @@ for path in glob.glob(test_img_folder + '/*'):
     img_LR = img_LR.cuda()
 
     # read seg
-    seg = torch.load(os.path.join(test_prob_path, base + '_bic.pth'))
+    seg = torch.load(os.path.join(test_prob_path, f'{base}_bic.pth'))
     seg = seg.unsqueeze(0)
     # change probability
     # seg.fill_(0)
@@ -60,4 +55,4 @@ for path in glob.glob(test_img_folder + '/*'):
 
     output = model((img_LR, seg)).data
     output = util.tensor2img(output.squeeze())
-    util.save_img(output, os.path.join(save_result_path, base + '_rlt.png'))
+    util.save_img(output, os.path.join(save_result_path, f'{base}_rlt.png'))

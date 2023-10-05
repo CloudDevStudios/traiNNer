@@ -77,7 +77,7 @@ def masks_CFA_Bayer(shape, pattern:str='RGGB') -> tuple:
     """
     pattern = pattern.upper()
 
-    channels = dict((channel, np.zeros(shape)) for channel in 'RGB')
+    channels = {channel: np.zeros(shape) for channel in 'RGB'}
     for channel, (y, x) in zip(pattern, [(0, 0), (0, 1), (1, 0), (1, 1)]):
         channels[channel][y::2, x::2] = 1
 
@@ -88,13 +88,13 @@ def make_img_even(img:np.ndarray,
     border=cv2.BORDER_REFLECT101) -> np.ndarray:
     """ Extend image in order to make it even sized """
 
-    h, w = img.shape[0:2]
-    top = 0
+    h, w = img.shape[:2]
     bottom = (h % 2 == 1)
-    left = 0
     right = (w % 2 == 1)
 
     if bottom > 0 or right > 0:
+        top = 0
+        left = 0
         return cv2.copyMakeBorder(img, top, bottom, left, right, border)
     return img
 
@@ -134,7 +134,7 @@ def mosaic_CFA_Bayer(RGB, pattern:str='RGGB') -> np.ndarray:
     RGB = np.asarray(RGB, dtype=DEFAULT_FLOAT_DTYPE)
 
     R, G, B = tsplit(RGB)
-    R_m, G_m, B_m = masks_CFA_Bayer(RGB.shape[0:2], pattern)
+    R_m, G_m, B_m = masks_CFA_Bayer(RGB.shape[:2], pattern)
 
     CFA = R * R_m + G * G_m + B * B_m
     del R_m, G_m, B_m
@@ -355,10 +355,8 @@ def demosaic_CFA_menon(CFA:np.ndarray, pattern:str='RGGB',
     C_V = np.where(R_m == 1, R - G_V, 0)
     C_V = np.where(B_m == 1, B - G_V, C_V)
 
-    D_H = np.abs(C_H - np.pad(C_H, ((0, 0),
-                                    (0, 2)), mode=str('reflect'))[:, 2:])
-    D_V = np.abs(C_V - np.pad(C_V, ((0, 2),
-                                    (0, 0)), mode=str('reflect'))[2:, :])
+    D_H = np.abs((C_H - np.pad(C_H, ((0, 0), (0, 2)), mode='reflect')[:, 2:]))
+    D_V = np.abs((C_V - np.pad(C_V, ((0, 2), (0, 0)), mode='reflect')[2:, :]))
 
     del h_0, h_1, CFA, C_V, C_H
 
@@ -735,8 +733,7 @@ def demosaic_pixelshuffle(bayer_images:np.ndarray,
     blue = resize_bimg(blue, shape)
     blue = np.flipud(np.fliplr(blue))
 
-    rgb_images = merge_channels([red, green, blue])
-    return rgb_images
+    return merge_channels([red, green, blue])
 
 
 ######################
@@ -745,41 +742,57 @@ def demosaic_pixelshuffle(bayer_images:np.ndarray,
 
 
 def get_rgb2xyz_array(kind:str='D65') -> np.ndarray:
-    if kind=='D50':
-        xyz_array = np.array(
-            [[0.4360747, 0.3850649, 0.1430804],
-            [0.2225045, 0.7168786, 0.0606169],
-            [0.0139322, 0.0971045, 0.7141733]])
-    elif kind=='D65a':
-        xyz_array = np.array(
-            [[0.412391, 0.357584, 0.180481],
-             [0.212639, 0.715169, 0.072192],
-             [0.019331, 0.119195, 0.950532]])
-    else:  # D65
-        xyz_array = np.array(
-            [[0.4124564, 0.3575761, 0.1804375],
-             [0.2126729, 0.7151522, 0.0721750],
-             [0.0193339, 0.1191920, 0.9503041]])
-    return xyz_array
+    if kind == 'D50':
+        return np.array(
+            [
+                [0.4360747, 0.3850649, 0.1430804],
+                [0.2225045, 0.7168786, 0.0606169],
+                [0.0139322, 0.0971045, 0.7141733],
+            ]
+        )
+    elif kind == 'D65a':
+        return np.array(
+            [
+                [0.412391, 0.357584, 0.180481],
+                [0.212639, 0.715169, 0.072192],
+                [0.019331, 0.119195, 0.950532],
+            ]
+        )
+    else:
+        return np.array(
+            [
+                [0.4124564, 0.3575761, 0.1804375],
+                [0.2126729, 0.7151522, 0.0721750],
+                [0.0193339, 0.1191920, 0.9503041],
+            ]
+        )
 
 
 def get_xyz2rgb_array(kind:str='D65') -> np.ndarray:
-    if kind=='D50':
-        xyz_array = np.array(
-            [[3.1338561, -1.6168667, -0.4906146],
-            [-0.9787684, 1.9161415, 0.0334540],
-            [0.0719453, -0.2289914, 1.4052427]])
-    elif kind=='D65a':
-        xyz_array = np.array(
-            [[3.240970, -1.537383, -0.498611],
-             [-0.969244, 1.875968, 0.041555],
-             [0.055630, -0.203977, 1.056972]])
-    else:  # D65
-        xyz_array = np.array(
-            [[3.2404542, -1.5371385, -0.4985314],
-             [-0.9692660, 1.8760108, 0.0415560],
-             [0.0556434, -0.2040259, 1.0572252]])
-    return xyz_array
+    if kind == 'D50':
+        return np.array(
+            [
+                [3.1338561, -1.6168667, -0.4906146],
+                [-0.9787684, 1.9161415, 0.0334540],
+                [0.0719453, -0.2289914, 1.4052427],
+            ]
+        )
+    elif kind == 'D65a':
+        return np.array(
+            [
+                [3.240970, -1.537383, -0.498611],
+                [-0.969244, 1.875968, 0.041555],
+                [0.055630, -0.203977, 1.056972],
+            ]
+        )
+    else:
+        return np.array(
+            [
+                [3.2404542, -1.5371385, -0.4985314],
+                [-0.9692660, 1.8760108, 0.0415560],
+                [0.0556434, -0.2040259, 1.0572252],
+            ]
+        )
 
 
 def random_ccm(xyz_arr:str='D65') -> np.ndarray:
@@ -829,8 +842,7 @@ def random_gains(rg_range=(1.9, 2.4), bg_range=(1.5, 1.9)) -> tuple:
 def inverse_smoothstep(image:np.ndarray) -> np.ndarray:
     """Approximately inverts a global tone mapping curve."""
     image = np.clip(image, 0.0, 1.0)
-    out = 0.5 - np.sin(np.arcsin(1.0 - 2.0 * image) / 3.0)  
-    return out
+    return 0.5 - np.sin(np.arcsin(1.0 - 2.0 * image) / 3.0)
 
 
 def gamma_expansion(image:np.ndarray) -> np.ndarray:

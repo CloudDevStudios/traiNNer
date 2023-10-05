@@ -103,7 +103,7 @@ def BatchAug(img1, img2, options, probs, alphas,
             prob=prob, alpha=alpha
         )
     else:
-        raise ValueError("{} is not invalid.".format(aug))
+        raise ValueError(f"{aug} is not invalid.")
 
     return img1_aug, img2_aug, mask, aug
 

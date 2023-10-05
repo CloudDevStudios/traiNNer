@@ -98,9 +98,6 @@ def combine_colors(fake_H, var_LR_bic, device='cpu'):
 
 
 def main():
-    # print("test")
-    opt = {}
-
     '''
     opt['name'] = 'DIV2K800'
     opt['dataroot_HR'] = '/mnt/SSD/xtwang/BasicSR_datasets/DIV2K800/DIV2K800_sub.lmdb'
@@ -111,59 +108,28 @@ def main():
     # opt['dataroot_LR'] = None
     '''
 
-    opt['name'] = 'testA'
-    opt['dataroot_HR'] = "../training/pbr/"
-    opt['dataroot_LR'] = None
-    opt['lr_downscale'] = True
-    # opt['lr_downscale_types'] = [0, 999, 777] #776
-    # opt['lr_downscale_types'] = [999]
-    opt['lr_downscale_types'] = [777]
-
-    opt['dataroot_kernels'] = "../training/kernels/results/"
-
-    opt['subset_file'] = None
-    opt['mode'] = 'LRHRPBR'  # 'VLRHR'  # "LRHRC" | "LRHROTF" | "VLRHR" | 'LRHR' | 'LRHRseg_bg'
-    opt['phase'] = 'train'  # 'train' | 'val'
-    opt['use_shuffle'] = True
-    opt['n_workers'] = 0  # 1 #8
-    # opt['n_iters'] = 200000
-    opt['batch_size'] = 1  # 16 #4
-    # opt['virtual_batch_size'] = 4
-    opt['HR_size'] = 256  # 512 #256 #128 #96
-    opt['scale'] = 1  # 4 #2 #1 #4
-    opt['use_flip'] = False  # True
-    opt['use_rot'] = False  # True
-    opt['color'] = 'RGB'
-    opt['data_type'] = 'img'  # 'lmdb'  # img lmdb
-
-    # video:
-    # opt['num_frames'] = 3
-    # opt['srcolors'] = True #False #True
-    # opt['random_reverse'] = True
-    # opt['max_frameskip'] = 9
-
-    # opt['lr_erasing'] = True
-    # opt['lr_cutout'] = True
-
-    # opt['auto_levels'] = 'Both'
-    # opt['rand_auto_levels'] = 0.8
-    # opt['auto_levels_per'] = 10
-
-    # opt['lr_unsharp_mask'] = True
-    # opt['lr_rand_unsharp'] = 0.8
-    # opt['hr_unsharp_mask'] = True
-    # opt['hr_rand_unsharp'] = 0.8
-
-    # opt['lr_blur'] = True
-    # opt['lr_blur_types'] = {"gaussian": 3, "average": 2, "clean": 6}
-    # opt['lr_blur_types'] = ["gaussian", "average", "clean", "clean"]
-
-    opt['lr_noise'] = True
-    # opt['lr_noise_types'] = ["gaussian", "JPEG", "quantize", "poisson", "dither", "s&p", "speckle", "clean"]
-    # opt['lr_noise_types'] = ["patches", "quantize", "maxrgb"]
-    # opt['lr_noise_types'] = ["JPEG"]
-    opt['lr_noise_types'] = ["patches"]
-
+    opt = {
+        'name': 'testA',
+        'dataroot_HR': "../training/pbr/",
+        'dataroot_LR': None,
+        'lr_downscale': True,
+        'lr_downscale_types': [777],
+        'dataroot_kernels': "../training/kernels/results/",
+        'subset_file': None,
+        'mode': 'LRHRPBR',
+        'phase': 'train',
+        'use_shuffle': True,
+        'n_workers': 0,
+        'batch_size': 1,
+        'HR_size': 256,
+        'scale': 1,
+        'use_flip': False,
+        'use_rot': False,
+        'color': 'RGB',
+        'data_type': 'img',
+        'lr_noise': True,
+        'lr_noise_types': ["patches"],
+    }
     opt['patch_noise']: True
     opt['noise_data'] = "../training/noise_patches/normal/"  # jpeg
 
@@ -188,11 +154,7 @@ def main():
 
     if save_samples:
         util.mkdir('tmp')
-        if opt['phase'] == 'train':
-            padding = 2
-        else:
-            padding = 0
-
+        padding = 2 if opt['phase'] == 'train' else 0
     for n, data in enumerate(train_loader, start=1):
         # test dataloader time
         # if i == 1:
@@ -232,18 +194,6 @@ def main():
             if save_samples:
                 torchvision.utils.save_image(
                     seg_color_batch, 'tmp/seg_{:03d}.png'.format(i), nrow=nrow, padding=2, normalize=False)
-
-        if opt['mode'] == 'VLRHR':
-            pass
-
-            # print(data['HR_center'].shape)
-            # print(data['LR_bicubic'].shape)
-
-            # tmp_vis(data['HR_center'], True)
-            # tmp_vis(data['LR_bicubic'], True)
-
-            # fed_data = feed_data(data)
-            # combine_colors(fed_data['var_H_center'], fed_data['var_LR_bic'])
 
         if opt['mode'] == 'LRHRPBR':
             if isinstance(data['AO'], torch.Tensor):

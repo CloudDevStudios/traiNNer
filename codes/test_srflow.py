@@ -41,7 +41,7 @@ def test_loop(model, opt, dataloaders, data_params):
         nlls = []
         for data in dataloader:
             znorm = znorms[name]
-            need_HR = False if dataloader.dataset.opt['dataroot_HR'] is None else True
+            need_HR = dataloader.dataset.opt['dataroot_HR'] is not None
 
             # set up per image CEM wrapper if configured
             CEM_net = get_CEM(opt, data)
@@ -53,20 +53,14 @@ def test_loop(model, opt, dataloaders, data_params):
 
             # test with eval mode. This only affects layers like batchnorm and dropout.
             test_mode = opt.get('test_mode', None)
-            if test_mode == 'x8':
+            if test_mode in ['x8', 'chop']:
                 # geometric self-ensemble
                 # model.test_x8(CEM_net=CEM_net)
-                break
-            elif test_mode == 'chop':
-                # chop images in patches/crops, to reduce VRAM usage
-                # model.test_chop(patch_size=opt.get('chop_patch_size', 100), 
-                #                 step=opt.get('chop_step', 0.9),
-                #                 CEM_net=CEM_net)
                 break
             else:
                 # normal inference
                 model.test(CEM_net=CEM_net)  # run inference
-            
+
             if hasattr(model, 'nll'):
                 nll = model.nll if model.nll else 0
                 nlls.append(nll)
@@ -78,7 +72,7 @@ def test_loop(model, opt, dataloaders, data_params):
 
             # save images
             save_img_path = os.path.join(dataset_dir, img_name + opt.get('suffix', ''))
-            
+
             # Save SR images for reference
             sr_img = None
             if hasattr(model, 'heats'):  # SRFlow
@@ -86,28 +80,24 @@ def test_loop(model, opt, dataloaders, data_params):
                 for heat in model.heats:
                     for i in range(model.n_sample):
                         for save_img_name in res_options['save_imgs']:
-                            imn = '_' + save_img_name if len(res_options['save_imgs']) > 1 else ''
+                            imn = f'_{save_img_name}' if len(res_options['save_imgs']) > 1 else ''
                             imn += '_h{:03d}_s{:d}'.format(int(heat * 100), i)
                             util.save_img(tensor2np(visuals[save_img_name, heat, i], denormalize=znorm), save_img_path + imn + '.png')
-            else:  # regular SR
-                if not opt['val_comparison']:
-                    for save_img_name in res_options['save_imgs']:
-                        imn = '_' + save_img_name if len(res_options['save_imgs']) > 1 else ''
-                        util.save_img(tensor2np(visuals[save_img_name], denormalize=znorm), save_img_path + imn + '.png')
+            elif not opt['val_comparison']:
+                for save_img_name in res_options['save_imgs']:
+                    imn = f'_{save_img_name}' if len(res_options['save_imgs']) > 1 else ''
+                    util.save_img(tensor2np(visuals[save_img_name], denormalize=znorm), save_img_path + imn + '.png')
 
             # save single images or lr / sr comparison
             if opt['val_comparison'] and len(res_options['save_imgs']) > 1:
                 comp_images = [tensor2np(visuals[save_img_name], denormalize=znorm) for save_img_name in res_options['save_imgs']]
-                util.save_img_comp(comp_images, save_img_path + '.png')
-            # else:
-                # util.save_img(sr_img, save_img_path)
-
+                util.save_img_comp(comp_images, f'{save_img_path}.png')
             # calculate metrics if HR dataset is provided and metrics are configured in options
             if need_HR and calc_metrics and res_options['aligned_metrics']:
                 metric_imgs = [tensor2np(visuals[x], denormalize=znorm) for x in res_options['compare_imgs']]
                 test_results = test_metrics.calculate_metrics(metric_imgs[0], metric_imgs[1], 
                                                               crop_size=opt['scale'])
-                
+
                 # prepare single image metrics log message
                 logger_m = '{:20s} -'.format(img_name)
                 for k, v in test_results.items():
@@ -117,12 +107,12 @@ def test_loop(model, opt, dataloaders, data_params):
                 if metric_imgs[1].shape[2] == 3:  # RGB image, calculate y_only metrics
                     test_results_y = test_metrics_y.calculate_metrics(metric_imgs[0], metric_imgs[1], 
                                                                       crop_size=opt['scale'], only_y=True)
-                    
+
                     # add the y only results to the single image log message
                     for k, v in test_results_y.items():
                         formatted_res = k.upper() + ': {:.6f}, '.format(v)
                         logger_m += formatted_res
-                
+
                 logger.info(logger_m)
             else:
                 logger.info(img_name)
@@ -136,8 +126,10 @@ def test_loop(model, opt, dataloaders, data_params):
 
             # prepare log average metrics message
             agg_logger_m = ''.join(f'{met.upper()}: {avgr:.6f}, ' for met, avgr in avg_metrics.items())
-            logger.info('----Average metrics results for {}----\n\t'.format(name) + agg_logger_m[:-2])
-            
+            logger.info(
+                f'----Average metrics results for {name}----\n\t{agg_logger_m[:-2]}'
+            )
+
             if avg_metrics_y:
                 # prepare log average Y channel metrics message
                 agg_logger_m = ''.join(f'{met.upper()}_Y: {avgr:.6f}, ' for met, avgr in avg_metrics_y.items())

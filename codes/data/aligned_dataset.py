@@ -30,9 +30,9 @@ class AlignedDataset(BaseDataset):
         self.noise_patches = get_noise_patches(self.opt)
         set_transforms(self.opt.get('img_loader', 'cv2'))
 
-        # get images paths (and optional environments for lmdb) from dataroots
-        dir_AB = self.opt.get('dataroot', None) or self.opt.get('dataroot_AB', None)
-        if dir_AB:
+        if dir_AB := self.opt.get('dataroot', None) or self.opt.get(
+            'dataroot_AB', None
+        ):
             self.AB_env = None  # environment for lmdb
             self.AB_paths = get_single_dataroot_path(self.opt, dir_AB)
             if self.opt.get('data_type') == 'lmdb':
@@ -85,13 +85,13 @@ class AlignedDataset(BaseDataset):
                 img_A, _ = Scale(img_A, scale,
                     algo=self.opt.get('lr_downscale_types', 777), img_type=img_type)
 
-        # change color space if necessary
-        # TODO: move to get_transform()
-        color_B = self.opt.get('color', None) or self.opt.get('color_HR', None)
-        if color_B:
+        if color_B := self.opt.get('color', None) or self.opt.get(
+            'color_HR', None
+        ):
             img_B = channel_convert(image_channels(img_B), color_B, [img_B])[0]
-        color_A = self.opt.get('color', None) or self.opt.get('color_LR', None)
-        if color_A:
+        if color_A := self.opt.get('color', None) or self.opt.get(
+            'color_LR', None
+        ):
             img_A = channel_convert(image_channels(img_A), color_A, [img_A])[0]
 
         # augmentations during training
@@ -176,7 +176,4 @@ class AlignedDataset(BaseDataset):
 
     def __len__(self):
         """Return the total number of images in the dataset."""
-        if self.AB_paths:
-            return len(self.AB_paths)
-        else:
-            return len(self.B_paths)
+        return len(self.AB_paths) if self.AB_paths else len(self.B_paths)

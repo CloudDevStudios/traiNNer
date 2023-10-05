@@ -151,13 +151,12 @@ class SRModel(BaseModel):
             self.fake_H = wrapped_netG(self.var_L)  # G(LR)
         elif self.unshuffle is not None:
             self.fake_H = self.netG(self.unshuffle(self.var_L))
+        elif self.outm:
+            # if the model has the final activation option
+            self.fake_H = self.netG(self.var_L, outm=self.outm)
         else:
-            if self.outm:
-                # if the model has the final activation option
-                self.fake_H = self.netG(self.var_L, outm=self.outm)
-            else:
-                # regular models without the final activation option
-                self.fake_H = self.netG(self.var_L)  # G(LR)
+            # regular models without the final activation option
+            self.fake_H = self.netG(self.var_L)  # G(LR)
 
     def backward_G(self):
         """Calculate GAN and reconstruction losses for the generator."""

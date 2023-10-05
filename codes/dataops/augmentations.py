@@ -78,7 +78,7 @@ def adj_scale_config(scale=None, resize_type:int=None,
         du_min = res_config['down_up_min']
         resize_type = get_weighted_choice(du_algos)[0]
         a_scale = random.uniform(du_min, scale)
-        scale = scale / a_scale
+        scale /= a_scale
     elif resize_type in [0, 774, 997]:
         # nearest
         scale = random.choice([-(-scale//2), scale])
@@ -269,9 +269,7 @@ def get_resize(size=None, scale=None, ds_algo=None,
 
 def get_blur(blur_types, blur_config):
     blur = None
-    blur_type = get_weighted_choice(blur_types)[0]
-
-    if blur_type:
+    if blur_type := get_weighted_choice(blur_types)[0]:
         if blur_type == 'average':
             blur = transforms.RandomAverageBlur(**blur_config)
         elif blur_type == 'box':
@@ -292,7 +290,6 @@ def get_blur(blur_types, blur_config):
             blur = transforms.RandomAnIsoBlur(**blur_config)
         elif blur_type == 'sinc':
             blur = transforms.RandomSincBlur(**blur_config)
-        # elif blur_type == 'clean':
     return blur
 
 
@@ -357,9 +354,7 @@ def get_pad(img, size: int, fill = 0, padding_mode: str ='constant'):
     w, h = image_size(img)
 
     if fill == 'random':
-        fill_list = []
-        for _ in range(len(img.shape)):
-            fill_list.append(random.randint(0, 255))
+        fill_list = [random.randint(0, 255) for _ in range(len(img.shape))]
         fill = tuple(fill_list)
 
     top = (size - h) // 2 if h < size else 0
@@ -385,7 +380,7 @@ class NoisePatches(Dataset):
         assert osp.exists(dataset)
 
         self.grayscale = grayscale
-        self.noise_imgs = sorted(glob.glob(dataset + '*.png'))
+        self.noise_imgs = sorted(glob.glob(f'{dataset}*.png'))
         if permute:
             np.random.shuffle(self.noise_imgs)
 
@@ -427,8 +422,8 @@ class RandomNoisePatches():
         # tmp_vis(noise, False)
         # img = torch.clamp(img + noise, 0, 1)
         # describe_numpy(img, all=True)
-        h, w = img.shape[0:2]
-        n_h, n_w = noise.shape[0:2]
+        h, w = img.shape[:2]
+        n_h, n_w = noise.shape[:2]
 
         if n_h < h or n_w < w:
             # pad noise patch to image size if smaller
@@ -447,7 +442,7 @@ class RandomNoisePatches():
         return img
 
     def __repr__(self):
-        return self.__class__.__name__ + '(p={})'.format(self.p)
+        return f'{self.__class__.__name__}(p={self.p})'
 
 
 
@@ -511,10 +506,7 @@ def get_params(opt, size):
 # TODO: could use the hasattr to set a value for all future calls
 # TODO: need something similar to use the other PIL interpolation methods
 def get_default_imethod(img_type='cv2'):
-    if img_type == 'pil':
-        return Image.BICUBIC
-    else:
-        return "BICUBIC"
+    return Image.BICUBIC if img_type == 'pil' else "BICUBIC"
 
 
 def get_transform(opt, params=None, grayscale=False, method=None,
@@ -596,7 +588,7 @@ def get_transform(opt, params=None, grayscale=False, method=None,
         transform_list.append(transforms.Lambda(
             lambda img: resize(img, w, h, method)))
 
-    if preprocess_mode == 'none':
+    elif preprocess_mode == 'none':
         # no preprocessing, fix dimensions if needed
         if default_none == 'power2':
             # only make sure image has dims of power 2
@@ -682,10 +674,7 @@ def scale_(img, scale, mul=False, method=None):
         h = int(-(-oh//scale))
         w = int(-(-ow//scale))
 
-    if h == oh and w == ow:
-        return img
-
-    return resize(img, w, h, method)
+    return img if h == oh and w == ow else resize(img, w, h, method)
 
 
 def make_power_2(img, base, method=None):
@@ -853,11 +842,7 @@ def rotateHR(img, crop_size=None, rescale=1/4, angle=None, center=0,
         method = get_default_imethod(image_type(img))
 
     if not angle or angle == 0:
-        if crop and crop_size:
-            return transforms.CenterCrop(crop_size)(img)
-        else:
-            return img
-
+        return transforms.CenterCrop(crop_size)(img) if crop and crop_size else img
     # TODO: add @preserve_shape wrapper to cv2 RandomRotation's function
     rrot = transforms.RandomRotation(
         degrees=(angle,angle), expand=crop, resample=method)
@@ -890,10 +875,7 @@ def rotateHR(img, crop_size=None, rescale=1/4, angle=None, center=0,
 
     if rescale < 1:
         # back to original size
-        if crop_size:
-            size = (crop_size, crop_size)
-        else:
-            size = (hr, wr)
+        size = (crop_size, crop_size) if crop_size else (hr, wr)
         img = transforms.Resize(
             size, interpolation=method)(img)
 
@@ -960,19 +942,18 @@ def split_paired_image(AB, loader):
 # TODO: using hasattr here, but there can be cases where I
 # would like to check the image type anyways
 def image_type(img):
-    if not hasattr(image_type, 'img_type'):
-        if pil_available and isinstance(img, Image.Image):
-            img_type = 'pil'
-            # return 'pil'
-        elif isinstance(img, np.ndarray):
-            img_type = 'cv2'
-            # return 'cv2'
-        else:
-            raise Exception("Unrecognized image type")
-        image_type.img_type = img_type
-        return img_type
-    else:
+    if hasattr(image_type, 'img_type'):
         return image_type.img_type
+    if pil_available and isinstance(img, Image.Image):
+        img_type = 'pil'
+        # return 'pil'
+    elif isinstance(img, np.ndarray):
+        img_type = 'cv2'
+        # return 'cv2'
+    else:
+        raise Exception("Unrecognized image type")
+    image_type.img_type = img_type
+    return img_type
 
 
 def image_size(img, img_type=None):
@@ -992,10 +973,7 @@ def image_channels(img, img_type=None):
     if img_type == 'pil':
         return len(img.getbands())
     elif img_type == 'cv2':
-        if len(img.shape) == 2:
-            return 1
-        else:
-            return img.shape[2]
+        return 1 if len(img.shape) == 2 else img.shape[2]
     else:
         raise Exception("Unrecognized image type")
 
@@ -1247,7 +1225,7 @@ def generate_A_fn(img_A, img_B, opt, scale, default_int_method,
     w, h = image_size(img_B)
     w_A, h_A = image_size(img_A)
 
-    same_s = True if w == w_A and h == h_A else False
+    same_s = w == w_A and h == h_A
     if same_s:
         img_type = image_type(img_A)
 
@@ -1338,11 +1316,10 @@ def get_ds_kernels(opt):
 
     if 'realk_scale' in opt:
         scale = opt['realk_scale']
+    elif 'resize_strat' in opt and 'in' in opt['resize_strat']:
+        scale = 4  # or 2 TODO: test
     else:
-        if 'resize_strat' in opt and 'in' in opt['resize_strat']:
-            scale = 4  # or 2 TODO: test
-        else:
-            scale=opt.get('scale', 4)
+        scale=opt.get('scale', 4)
 
     if types:
         # TODO: could make this class into a pytorch dataloader,
@@ -1363,11 +1340,9 @@ def get_noise_patches(opt):
     if opt['phase'] == 'train' and opt.get('lr_noise_types', 3) and "patches" in opt.get('lr_noise_types', {}):
         assert opt['noise_data']
         # noise_patches = NoisePatches(opt['noise_data'], opt.get('HR_size', 128)/opt.get('scale', 4))
-        noise_patches = NoisePatches(opt['noise_data'], opt.get('noise_data_size', 256))
+        return NoisePatches(opt['noise_data'], opt.get('noise_data_size', 256))
     else:
-        noise_patches = None
-
-    return noise_patches
+        return None
 
 
 def paired_imgs_check(img_A, img_B, opt, ds_kernels=None, scale=None):
@@ -1447,10 +1422,7 @@ def get_aug_confs(opt:dict, aug_name:str=None,
             config_name = config_name if config_name else aug_name
             name = param_name if param_name else aug_name[3:]
 
-            in_aug_configs = False
-            if 'aug_configs' in opt and config_name in opt['aug_configs']:
-                in_aug_configs = True
-
+            in_aug_configs = 'aug_configs' in opt and config_name in opt['aug_configs']
             if types:
                 sel_types = opt.get(types)  # selected types
                 choice = get_weighted_choice(sel_types)
@@ -1480,10 +1452,7 @@ def get_res_confs(opt:dict, aug_name:str=None,
             config_name = config_name if config_name else aug_name
             name = param_name if param_name else aug_name[3:]
 
-            in_aug_configs = False
-            if 'aug_configs' in opt and config_name in opt['aug_configs']:
-                in_aug_configs = True
-
+            in_aug_configs = 'aug_configs' in opt and config_name in opt['aug_configs']
             sel_types = opt.get(types)  # selected types
             choice = get_weighted_choice(sel_types)
 
@@ -1611,16 +1580,25 @@ def get_unpaired_params(opt:dict):
     lr_cutout = opt.get('lr_cutout')
     lr_erasing = opt.get('lr_erasing')
 
-    if lr_cutout and not lr_erasing:
+    if (
+        (not lr_cutout or lr_erasing)
+        and (not lr_erasing or lr_cutout)
+        and lr_cutout
+        and random.random() > 0.5
+        or lr_cutout
+        and not lr_erasing
+    ):
         lr_augs['cutout'] = opt.get('lr_cutout_p', 1)
-    elif lr_erasing and not lr_cutout:
+    elif (
+        (not lr_cutout or lr_erasing)
+        and (not lr_erasing or lr_cutout)
+        and lr_cutout
+        and random.random() <= 0.5
+        or (not lr_cutout or lr_erasing)
+        and lr_erasing
+        and not lr_cutout
+    ):
         lr_augs['erasing'] = opt.get('lr_erasing_p', 1)
-    elif lr_cutout and lr_erasing:
-        # only do cutout or erasing, not both at the same time
-        if random.random() > 0.5:
-            lr_augs['cutout'] = opt.get('lr_cutout_p', 1)
-        else:
-            lr_augs['erasing'] = opt.get('lr_erasing_p', 1)
 
     # set random shuffle
     if opt.get('shuffle_degradations'):
@@ -1650,11 +1628,9 @@ def get_augmentations(opt:dict, params:dict=None,
     crop_size = opt.get('crop_size')
     if params and params['kind'] == 'lr':
         crop_size = crop_size // scale
-    ada_scale = False
-    if (img_size and -4 < (min(img_size) - crop_size) <= 4
-        and scale > 1):
-        ada_scale = True
-
+    ada_scale = bool(
+        (img_size and -4 < (min(img_size) - crop_size) <= 4 and scale > 1)
+    )
     transform_list = aug_pipeline(
         params=params, noise_patches=noise_patches,
         scale=scale, ds_kernels=ds_kernels,
@@ -1672,8 +1648,7 @@ def aug_pipeline(params:dict=None, noise_patches=None,
     if 'blur' in params:
         aug = list(params['blur'].keys())
         conf = list(params['blur'].values())[0]
-        blur_func = get_blur(aug, conf)
-        if blur_func:
+        if blur_func := get_blur(aug, conf):
             transform_list.append(blur_func)
 
     # resize1
@@ -1682,25 +1657,27 @@ def aug_pipeline(params:dict=None, noise_patches=None,
         conf = params['resize'].get('add_conf').copy()
         if ada_scale:
             conf['ada_scale'] = ada_scale
-        res_func = Scale_class(scale=scale, ds_kernel=ds_kernels,
-                resize_type=algo, img_type='cv2', res_config=conf)
-        if res_func:
+        if res_func := Scale_class(
+            scale=scale,
+            ds_kernel=ds_kernels,
+            resize_type=algo,
+            img_type='cv2',
+            res_config=conf,
+        ):
             transform_list.append(res_func)
 
     # noise1
     if 'noise' in params:
         aug = list(params['noise'].keys())
         conf = list(params['noise'].values())[0]
-        noise_func = get_noise(aug, noise_patches, conf)
-        if noise_func:
+        if noise_func := get_noise(aug, noise_patches, conf):
             transform_list.append(noise_func)
 
     # compression: jpeg + webp
     if 'compression' in params:
         aug = list(params['compression'].keys())
         conf = list(params['compression'].values())[0]
-        noise_func = get_noise(aug, noise_patches, conf)
-        if noise_func:
+        if noise_func := get_noise(aug, noise_patches, conf):
             transform_list.append(noise_func)
 
     # auto levels / color balance
@@ -1722,8 +1699,7 @@ def aug_pipeline(params:dict=None, noise_patches=None,
     if 'blur2' in params:
         aug = list(params['blur2'].keys())
         conf = list(params['blur2'].values())[0]
-        blur_func = get_blur(aug, conf)
-        if blur_func:
+        if blur_func := get_blur(aug, conf):
             transform_list.append(blur_func)
 
     # resize2
@@ -1732,17 +1708,20 @@ def aug_pipeline(params:dict=None, noise_patches=None,
         conf = params['resize2'].get('add_conf').copy()
         if ada_scale:
             conf['ada_scale'] = ada_scale
-        res_func = Scale_class(scale=scale, ds_kernel=ds_kernels,
-                resize_type=algo, img_type='cv2', res_config=conf)
-        if res_func:
+        if res_func := Scale_class(
+            scale=scale,
+            ds_kernel=ds_kernels,
+            resize_type=algo,
+            img_type='cv2',
+            res_config=conf,
+        ):
             transform_list.append(res_func)
 
     # noise2
     if 'noise2' in params:
         aug = list(params['noise2'].keys())
         conf = list(params['noise2'].values())[0]
-        noise_func = get_noise(aug, noise_patches, conf)
-        if noise_func:
+        if noise_func := get_noise(aug, noise_patches, conf):
             transform_list.append(noise_func)
 
     if "random_shuffle" in params:
@@ -1754,27 +1733,26 @@ def aug_pipeline(params:dict=None, noise_patches=None,
     if 'final_compression' in params:
         aug = list(params['final_compression'].keys())
         conf = list(params['final_compression'].values())[0]
-        noise_func = get_noise(aug, noise_patches, conf)
-        if noise_func:
+        if noise_func := get_noise(aug, noise_patches, conf):
             final_compression_transform.append(noise_func)
 
     # final resize
     final_resize_transform = []
     if 'final_scale' in params:
         algo = params['final_scale'][0]
-        res_func = Scale_class(
+        if res_func := Scale_class(
             # size=(crop_size, crop_size, 3), resize_type=algo,
-            size=(crop_size, crop_size), resize_type=algo,
-            img_type='cv2')
-        if res_func:
+            size=(crop_size, crop_size),
+            resize_type=algo,
+            img_type='cv2',
+        ):
             final_resize_transform.append(res_func)
 
         # final blur (sinc)
         if 'final_blur' in params:
             aug = list(params['final_blur'].keys())
             conf = list(params['final_blur'].values())[0]
-            blur_func = get_blur(aug, conf)
-            if blur_func:
+            if blur_func := get_blur(aug, conf):
                 final_resize_transform.append(blur_func)
 
     if final_compression_transform:
@@ -1803,9 +1781,7 @@ def aug_pipeline(params:dict=None, noise_patches=None,
 
 # TODO: these don't change, can be fixed from the dataloader init
 def get_totensor_params(opt):
-    params = {}
-
-    params['znorm'] = opt.get('znorm', False)
+    params = {'znorm': opt.get('znorm', False)}
 
     loader = opt.get('img_loader', 'cv2')
     if loader == 'pil':
@@ -1816,13 +1792,10 @@ def get_totensor_params(opt):
         method = opt.get('toTensor_method')
     params['method'] = method
 
-    # only required for 'transforms' normalization
-    mean = opt.get('normalization_mean')
-    if mean:
+    if mean := opt.get('normalization_mean'):
         params['mean'] = mean
 
-    std = opt.get('normalization_std')
-    if std:
+    if std := opt.get('normalization_std'):
         params['std'] = std
 
     params['normalize_first'] = opt.get('normalize_first')
@@ -1850,7 +1823,7 @@ def get_totensor(opt, params=None, toTensor=True, grayscale=False, normalize=Fal
                 mean = params['mean'] if 'mean' in params else (0.5, 0.5, 0.5)
                 std = params['std'] if 'std' in params else (0.5, 0.5, 0.5)
             if params['normalize_first']:
-                transform_list[0:0] = [transforms.Normalize(mean=mean, std=std)]
+                transform_list[:0] = [transforms.Normalize(mean=mean, std=std)]
             else:
                 transform_list += [transforms.Normalize(mean=mean, std=std)]
     else:

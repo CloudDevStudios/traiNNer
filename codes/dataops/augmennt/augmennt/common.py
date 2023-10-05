@@ -86,11 +86,12 @@ def pil2cv(pil_image):
 def cv2pil(open_cv_image):
     if pil_available:
         shape = open_cv_image.shape
-        if len(shape) == 3 and shape[-1] == 1: # len(shape) == 2:
-            open_cv_image = np.squeeze(open_cv_image, axis=-1)
-        if len(shape) == 3 and shape[-1] == 3:
-            # Convert BGR to RGB
-            open_cv_image = cv2.cvtColor(open_cv_image.copy(), cv2.COLOR_BGR2RGB)
+        if len(shape) == 3:
+            if shape[-1] == 1:
+                open_cv_image = np.squeeze(open_cv_image, axis=-1)
+            if shape[-1] == 3:
+                # Convert BGR to RGB
+                open_cv_image = cv2.cvtColor(open_cv_image.copy(), cv2.COLOR_BGR2RGB)
         return Image.fromarray(open_cv_image)
     raise Exception("PIL not available")
 
@@ -271,23 +272,24 @@ def preserve_range_float(func):
     @wraps(func)
     def wrapped_function(img, *args, **kwargs):
         # if isinstance(img, np.ndarray):
-        if type(img).__module__ == np.__name__:
-            t_dtype = np.dtype("float32")
-            dtype = img.dtype
-            if dtype == t_dtype:
-                return func(img, *args, **kwargs)
+        if type(img).__module__ != np.__name__:
+            return func(img, *args, **kwargs)
+        t_dtype = np.dtype("float32")
+        dtype = img.dtype
+        if dtype == t_dtype:
+            return func(img, *args, **kwargs)
 
-            t_maxval = MAX_VALUES_BY_DTYPE.get(t_dtype)
-            maxval = MAX_VALUES_BY_DTYPE.get(dtype)
-            if not maxval:
-                if np.issubdtype(dtype, np.integer):
-                    info = np.iinfo
-                elif np.issubdtype(dtype, np.floating):
-                    info = np.finfo
-                maxval = info(dtype).max
-            img = img.astype(t_dtype)*t_maxval/maxval
-            return (func(img, *args, **kwargs)*maxval).astype(dtype)
-        return func(img, *args, **kwargs)
+        t_maxval = MAX_VALUES_BY_DTYPE.get(t_dtype)
+        maxval = MAX_VALUES_BY_DTYPE.get(dtype)
+        if not maxval:
+            if np.issubdtype(dtype, np.integer):
+                info = np.iinfo
+            elif np.issubdtype(dtype, np.floating):
+                info = np.finfo
+            maxval = info(dtype).max
+        img = img.astype(t_dtype)*t_maxval/maxval
+        return (func(img, *args, **kwargs)*maxval).astype(dtype)
+
     return wrapped_function
 
 
@@ -354,15 +356,14 @@ def pad_kernel(kernel:np.ndarray, kernel_size:int,
 def fetch_kernels(kernels_path, pattern:str='', scale=None, kformat:str='npy'):
     if pattern == 'kernelgan':
         # using the modified kernelGAN file structure.
-        kernels = glob(pjoin(kernels_path, '*/kernel_x{}.{}'.format(scale, kformat)))
+        kernels = glob(pjoin(kernels_path, f'*/kernel_x{scale}.{kformat}'))
         if not kernels:
             # try using the original kernelGAN file structure.
-            kernels = glob(pjoin(kernels_path, '*/*_kernel_x{}.{}'.format(scale, kformat)))
-        # assert kernels, "No kernels found for scale {} in path {}.".format(scale, kernels_path)
+            kernels = glob(pjoin(kernels_path, f'*/*_kernel_x{scale}.{kformat}'))
     elif pattern == 'matmotion':
-        kernels = glob(pjoin(kernels_path, 'm_??.{}'.format(kformat)))
+        kernels = glob(pjoin(kernels_path, f'm_??.{kformat}'))
     else:
-        kernels = glob(pjoin(kernels_path, '*.{}'.format(kformat)))
+        kernels = glob(pjoin(kernels_path, f'*.{kformat}'))
     return kernels
 
 
@@ -387,11 +388,7 @@ def sample(img:np.ndarray, scale=2, sampling:str='down',
     input_shape = img.shape
     # by default, if scale-factor is a scalar assume 2d resizing
     # and duplicate it
-    if isinstance(scale, (int, float)):
-        scale_factor = [scale, scale]
-    else:
-        scale_factor = scale
-
+    scale_factor = [scale, scale] if isinstance(scale, (int, float)) else scale
     if orig:
         scale_factor = [1/factor for factor in scale_factor]
 
@@ -411,7 +408,7 @@ def sample(img:np.ndarray, scale=2, sampling:str='down',
     if center:
         st = [(sf-1)//2 for sf in scale_factor]
     else:
-        st = [0 for sf in scale_factor]
+        st = [0 for _ in scale_factor]
 
     if sampling == 'up':
         # then upsample and return
@@ -478,10 +475,7 @@ def to_tuple(param, low=None, bias=None):
     else:
         raise TypeError("Argument param must be either scalar (int, float) or tuple")
 
-    if bias is not None:
-        return tuple(bias + x for x in param)
-
-    return tuple(param)
+    return tuple(bias + x for x in param) if bias is not None else tuple(param)
 
 
 # TODO: change preserve_range_float() and others to use these
@@ -504,7 +498,6 @@ def from_float(img, dtype=np.dtype("uint8"), maxval=None):
             maxval = MAX_VALUES_BY_DTYPE[dtype]
         except KeyError:
             raise RuntimeError(
-                "Can't infer the maximum value for dtype {}. You need to specify the maximum value manually by "
-                "passing the maxval argument".format(dtype)
+                f"Can't infer the maximum value for dtype {dtype}. You need to specify the maximum value manually by passing the maxval argument"
             )
     return (img * maxval).astype(dtype)

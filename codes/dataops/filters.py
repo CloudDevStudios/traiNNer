@@ -20,8 +20,7 @@ def get_kernel_size(sigma = 6):
     Alternative from Matlab: kernel_size=2*np.ceil(3*sigma)+1
     https://stackoverflow.com/questions/3149279/optimal-sigma-for-gaussian-filtering-of-an-image
     """
-    kernel_size = np.ceil(sigma*6)
-    return kernel_size
+    return np.ceil(sigma*6)
 
 
 def get_kernel_sigma(kernel_size = 5):
@@ -73,8 +72,7 @@ def get_gaussian_kernel1d(kernel_size: int,
             (kernel_size % 2 == 0) and not force_even) or (
             kernel_size <= 0)):
         raise TypeError(
-            "kernel_size must be an odd positive integer. "
-            "Got {}".format(kernel_size)
+            f"kernel_size must be an odd positive integer. Got {kernel_size}"
         )
 
     if kernel_size % 2 == 0:
@@ -85,7 +83,7 @@ def get_gaussian_kernel1d(kernel_size: int,
         gauss = torch.Tensor([np.exp(-(x - kernel_size//2)**2/float(2*sigma**2)) for x in range(kernel_size)])
 
     gauss /= gauss.sum()
-    
+
     return gauss
 
 
@@ -130,23 +128,19 @@ def get_gaussian_kernel2d(
 
     if not isinstance(kernel_size, tuple) or len(kernel_size) != 2:
         raise TypeError(
-            "kernel_size must be a tuple of length two. Got {}".format(
-                kernel_size
-            )
+            f"kernel_size must be a tuple of length two. Got {kernel_size}"
         )
     if not isinstance(sigma, tuple) or len(sigma) != 2:
-        raise TypeError(
-            "sigma must be a tuple of length two. Got {}".format(sigma)
-        )
+        raise TypeError(f"sigma must be a tuple of length two. Got {sigma}")
     ksize_x, ksize_y = kernel_size
     sigma_x, sigma_y = sigma
     kernel_x: torch.Tensor = get_gaussian_kernel1d(ksize_x, sigma_x, force_even)
     kernel_y: torch.Tensor = get_gaussian_kernel1d(ksize_y, sigma_y, force_even)
-    
+
     kernel_2d: torch.Tensor = torch.matmul(
         kernel_x.unsqueeze(-1), kernel_y.unsqueeze(-1).t()
     )
-    
+
     return kernel_2d
 
 
@@ -191,9 +185,7 @@ def get_box_kernel(kernel_size: int = 5, dim=2):
 
     kx = kernel_size[0]
     ky = kernel_size[1]
-    box_kernel = torch.Tensor(np.ones((kx, ky)) / (float(kx)*float(ky)))
-
-    return box_kernel
+    return torch.Tensor(np.ones((kx, ky)) / (float(kx)*float(ky)))
 
 
 # TODO: Can change HFEN to use either LoG, DoG or XDoG
@@ -396,9 +388,7 @@ def get_sobel_kernel_2d(kernel_size=3):
     den = (x ** 2 + y ** 2)
     # den[:, kernel_size // 2] = 1  # avoid division by zero at the center of den
     den[kernel_size // 2, kernel_size // 2] = 1  # avoid division by zero at the center of den
-    # sobel_2D = x / den #produces kernel in range (0,1)
-    sobel_2D = 2*x / den  # produces same kernel as kornia
-    return sobel_2D
+    return 2*x / den
 
 
 def get_sobel_kernel(kernel_size=3):
@@ -479,11 +469,7 @@ def load_filter(kernel, kernel_size=3, in_channels=3, out_channels=3,
     kernel = kernel_conv_w(kernel, in_channels)
     assert(len(kernel.shape)==4 and kernel.shape[0]==in_channels)
 
-    if padding:
-        pad = compute_padding(kernel_size)
-    else:
-        pad = 0
-
+    pad = compute_padding(kernel_size) if padding else 0
     # create filter as convolutional layer
     if dim == 1:
         conv = nn.Conv1d
@@ -523,20 +509,15 @@ def compute_padding(kernel_size):
         for i in range(len(kernel_size)):
             computed_tmp = computed[-(i + 1)]
             # for even kernels we need to do asymetric padding
-            if kernel_size[i] % 2 == 0:
-                padding = computed_tmp - 1
-            else:
-                padding = computed_tmp
-            out_padding.append(padding)
-            out_padding.append(computed_tmp)
+            padding = computed_tmp - 1 if kernel_size[i] % 2 == 0 else computed_tmp
+            out_padding.extend((padding, computed_tmp))
         return out_padding
 
 
 def normalize_kernel2d(input: torch.Tensor) -> torch.Tensor:
     """Normalizes kernel."""
     if len(input.size()) < 2:
-        raise TypeError("input should be at least 2D tensor. Got {}"
-                        .format(input.size()))
+        raise TypeError(f"input should be at least 2D tensor. Got {input.size()}")
     norm: torch.Tensor = input.abs().sum(dim=-1).sum(dim=-1)
     return input / (norm.unsqueeze(-1).unsqueeze(-1))
 
@@ -646,11 +627,7 @@ class FilterLow(nn.Module):
         filter_type=None):
         super(FilterLow, self).__init__()
 
-        if padding:
-            pad = compute_padding(kernel_size)
-        else:
-            pad = 0
-
+        pad = compute_padding(kernel_size) if padding else 0
         if filter_type == 'gaussian':
             sigma = get_kernel_sigma(kernel_size)
             kernel = get_gaussian_kernel2d(
@@ -666,7 +643,7 @@ class FilterLow(nn.Module):
         self.recursions = recursions
 
     def forward(self, img):
-        for i in range(self.recursions):
+        for _ in range(self.recursions):
             img = self.filter(img)
         return img
 
@@ -678,13 +655,12 @@ class FilterHigh(nn.Module):
         super(FilterHigh, self).__init__()
 
         # if is standard freq. separator, will use the same LPF to remove LF from image
-        if filter_type=='gaussian' or filter_type=='average':
+        if filter_type in ['gaussian', 'average']:
             self.type = 'separator'
             self.filter_low = FilterLow(
                 recursions=1, kernel_size=kernel_size, stride=stride,
                 image_channels=image_channels, include_pad=include_pad,
                 filter_type=filter_type)
-        # otherwise, can use any independent filter
         else: #load any other filter for the high pass
             self.type = 'independent'
             #kernel and kernel_size should be provided. Options for edge detectors:
@@ -692,10 +668,7 @@ class FilterHigh(nn.Module):
             # and get_sobel_kernel
             # Single dimension: get_prewitt_kernel_3x3, get_scharr_kernel_3x3
             # get_gradient_kernel_3x3
-            if include_pad:
-                pad = compute_padding(kernel_size)
-            else:
-                pad = 0
+            pad = compute_padding(kernel_size) if include_pad else 0
             self.filter_low = load_filter(
                 kernel=kernel, kernel_size=kernel_size,
                 in_channels=image_channels, out_channels=image_channels,
@@ -706,15 +679,12 @@ class FilterHigh(nn.Module):
     def forward(self, img):
         if self.type == 'separator':
             if self.recursions > 1:
-                for i in range(self.recursions - 1):
+                for _ in range(self.recursions - 1):
                     img = self.filter_low(img)
             img = img - self.filter_low(img)
         elif self.type == 'independent':
             img = self.filter_low(img)
-        if self.normalize:
-            return denorm(img)
-        else:
-            return img
+        return denorm(img) if self.normalize else img
 
 
 # TODO: check how similar getting the gradient with
@@ -782,8 +752,7 @@ def get_4dim_image_gradients(image: torch.Tensor):
 def grad_orientation(grad_y, grad_x):
     go = torch.atan(grad_y / grad_x)
     go = go * (360 / np.pi) + 180 # convert to degree
-    go = torch.round(go / 45) * 45  # keep a split by 45
-    return go
+    return torch.round(go / 45) * 45
 
 
 def guided_filter(x: torch.Tensor, y: torch.Tensor,
@@ -853,21 +822,19 @@ def guided_filter(x: torch.Tensor, y: torch.Tensor,
     b = mean_y - A * mean_x  # according to original GF paper, needs to add: "+ x"
 
     # mean_A; mean_b
-    if mode == 'fast' or mode == 'conv':
+    if mode in {'fast', 'conv'}:
         mean_A = F.interpolate(
             A, (x_HR_shape[-2], x_HR_shape[-1]),
             mode='bilinear', align_corners=True)
         mean_b = F.interpolate(
             b, (x_HR_shape[-2], x_HR_shape[-1]),
             mode='bilinear', align_corners=True)
-        output = mean_A * x_HR + mean_b
+        return mean_A * x_HR + mean_b
     else:
         # regular GuidedFilter
         mean_A = filter2D(A, box_kernel) / N
         mean_b = filter2D(b, box_kernel) / N
-        output = mean_A * x + mean_b
-
-    return output
+        return mean_A * x + mean_b
 
 
 class GuidedFilter(nn.Module):
@@ -882,10 +849,7 @@ class GuidedFilter(nn.Module):
             raise ValueError("Either kernel size (ks) or radius (r) "
                                  "for the window are required.")
 
-        if not ks and r:
-            self.ks = (2*r)+1
-        elif ks:
-            self.ks = ks
+        self.ks = (2*r)+1 if not ks else ks
         self.box_kernel = get_box_kernel(kernel_size = self.ks)
 
         if self.mode == 'conv':
@@ -905,7 +869,7 @@ class GuidedFilter(nn.Module):
         n_x, c_x, h_x, w_x = x.size()
         n_y, c_y, h_y, w_y = y.size()
         assert n_x == n_y
-        assert c_x == 1 or c_x == c_y
+        assert c_x in [1, c_y]
         assert h_x == h_y and w_x == w_y
         assert h_x > self.ks and w_x > self.ks
 

@@ -21,8 +21,9 @@ from dataops.filters import FilterHigh, FilterLow
 
 logger = logging.getLogger('base')
 
-load_amp = (hasattr(torch.cuda, "amp") and hasattr(torch.cuda.amp, "autocast"))
-if load_amp:
+if load_amp := (
+    hasattr(torch.cuda, "amp") and hasattr(torch.cuda.amp, "autocast")
+):
     from torch.cuda.amp import autocast, GradScaler
     logger.info("AMP library available")
 else:
@@ -128,14 +129,13 @@ class BaseModel:
 
         for name in self.model_names:
             if isinstance(name, str):
-                net = getattr(self, 'net' + name)
+                net = getattr(self, f'net{name}')
                 s, n = self.get_network_description(net)
                 if isinstance(net, (nn.DataParallel, nn.parallel.DistributedDataParallel)):
-                    net_struc_str = '{} - {}'.format(net.__class__.__name__,
-                                                     net.module.__class__.__name__)
+                    net_struc_str = f'{net.__class__.__name__} - {net.module.__class__.__name__}'
                 else:
                     net_struc_str = f'{net.__class__.__name__}'
-            
+
             logger.info(f'Network {name} structure: {net_struc_str}, with parameters: {n:,d}')
             if verbose:
                 logger.info(s)
@@ -165,7 +165,7 @@ class BaseModel:
         """
         for name in self.model_names:
             if isinstance(name, str):
-                net = getattr(self, 'net' + name)
+                net = getattr(self, f'net{name}')
                 self.save_network(net, name, iter_step, latest)
 
         # self.save_network(self.netG, 'G', iter_step, latest)
@@ -192,11 +192,11 @@ class BaseModel:
         """Load all the networks from disk."""
         for name in self.model_names:
             if isinstance(name, str):
-                net = getattr(self, 'net' + name)
+                net = getattr(self, f'net{name}')
                 load_path_opt = f'pretrain_model_{name}'
                 load_path = self.opt['path'][load_path_opt]
-                load_submodule = self.opt['path'].get('load_submodule', None)  # 'RRDB' -> pretrained RRDB for SRFlow
                 if load_path is not None:
+                    load_submodule = self.opt['path'].get('load_submodule', None)  # 'RRDB' -> pretrained RRDB for SRFlow
                     logger.info(f'Loading pretrained model for {name} [{load_path:s}]')
                     model_type = 'D' if 'D' in name else 'G'
                     strict = True
@@ -209,7 +209,7 @@ class BaseModel:
     def load_swa(self):
         if self.opt['is_train'] and self.opt['use_swa']:
             load_path_swaG = self.opt['path']['pretrain_model_swaG']
-            if self.opt['is_train'] and load_path_swaG is not None:
+            if load_path_swaG is not None:
                 logger.info(f'Loading pretrained model for SWA G [{load_path_swaG:s}]')
                 self.load_network(load_path_swaG, self.swa_model)
 
@@ -237,11 +237,10 @@ class BaseModel:
 
     def _get_init_lr(self):
         """Get the initial lr, which is set by the scheduler (for warmup)."""
-        init_lr_groups_l = []
-        for optimizer in self.optimizers:
-            init_lr_groups_l.append(
-                [v['initial_lr'] for v in optimizer.param_groups])
-        return init_lr_groups_l
+        return [
+            [v['initial_lr'] for v in optimizer.param_groups]
+            for optimizer in self.optimizers
+        ]
 
     def update_learning_rate(self, current_step: int=None,
         warmup_iter: int=-1):
@@ -257,21 +256,12 @@ class BaseModel:
             self.swa_model.update_parameters(self.netG)
             self.swa_scheduler.step()
 
-            # TODO: uncertain, how to deal with the discriminator
-            # schedule when the generator enters SWA regime:
-            # alt 1): D continues with its normal scheduler (current option)
-            # alt 2): D also trained using SWA scheduler
-            # alt 3): D lr is not modified any longer (Should D be frozen?)
-            sched_count = 0
-            for scheduler in self.schedulers:
-                # first scheduler is G, skip
+            for sched_count, scheduler in enumerate(self.schedulers):
                 if sched_count > 0:
                     if self.opt['train']['lr_scheme'] == 'ReduceLROnPlateau':
                         scheduler.step(self.metric)
                     else:
                         scheduler.step()
-                sched_count += 1
-        # regular schedulers
         else:
             # print(self.schedulers)
             # print(str(scheduler.__class__) + ": " + str(scheduler.__dict__))
@@ -284,11 +274,10 @@ class BaseModel:
             if current_step < warmup_iter:
                 # get initial lr for each group
                 init_lr_g_l = self._get_init_lr()
-                # modify warming-up learning rates
-                warm_up_lr_l = []
-                for init_lr_g in init_lr_g_l:
-                    warm_up_lr_l.append(
-                        [v / warmup_iter * current_step for v in init_lr_g])
+                warm_up_lr_l = [
+                    [v / warmup_iter * current_step for v in init_lr_g]
+                    for init_lr_g in init_lr_g_l
+                ]
                 # set learning rate
                 self._set_lr(warm_up_lr_l)
 
@@ -297,22 +286,21 @@ class BaseModel:
             self.optDstep = False
 
     def get_current_learning_rate(self, current_step=None):
-        if torch.__version__ >= '1.4.0':
-            # Note: SWA only works for torch.__version__ >= '1.6.0'
-            if (self.swa and current_step and
-                isinstance(self.swa_start_iter, int) and
-                current_step > self.swa_start_iter):
-                # SWA scheduler lr
-                return self.swa_scheduler.get_last_lr()[0]
-            # Regular G scheduler lr
-            if self.opt['train']['lr_scheme'] == 'ReduceLROnPlateau':
-                # TODO: to deal with PyTorch bug:
-                # https://github.com/pytorch/pytorch/issues/50715
-                return self.schedulers[0]._last_lr[0]
-            return self.schedulers[0].get_last_lr()[0]
-        else:
+        if torch.__version__ < '1.4.0':
             # return self.schedulers[0].get_lr()[0]
             return self.optimizers[0].param_groups[0]['lr']
+        # Note: SWA only works for torch.__version__ >= '1.6.0'
+        if (self.swa and current_step and
+            isinstance(self.swa_start_iter, int) and
+            current_step > self.swa_start_iter):
+            # SWA scheduler lr
+            return self.swa_scheduler.get_last_lr()[0]
+        # Regular G scheduler lr
+        if self.opt['train']['lr_scheme'] == 'ReduceLROnPlateau':
+            # TODO: to deal with PyTorch bug:
+            # https://github.com/pytorch/pytorch/issues/50715
+            return self.schedulers[0]._last_lr[0]
+        return self.schedulers[0].get_last_lr()[0]
 
     def get_network_description(self, network: nn.Module):
         """Get the string and total parameters of the network"""
@@ -393,7 +381,7 @@ class BaseModel:
         # network.load_state_dict(torch.load(load_path), strict=strict)
 
         # load into a specific submodule of the network
-        if not (submodule is None or submodule.lower() == 'none'.lower()):
+        if submodule is not None and submodule.lower() != 'none'.lower():
             network = network.__getattr__(submodule)
 
         # load_net = torch.load(load_path)
@@ -466,10 +454,7 @@ class BaseModel:
         if self.opt['is_train'] and self.opt['use_amp'] and state.get('amp_scaler'):
                 state['amp_scaler'] = self.amp_scaler.state_dict()
 
-        if latest:
-            save_filename = 'latest.state'
-        else:
-            save_filename = f'{iter_step}.state'
+        save_filename = 'latest.state' if latest else f'{iter_step}.state'
         save_path = os.path.join(self.opt['path']['training_state'], save_filename)
         if os.path.exists(save_path):
             prev_path = os.path.join(self.opt['path']['training_state'], 'previous.state')
@@ -489,14 +474,14 @@ class BaseModel:
                 if isinstance(self.schedulers[i].milestones, Counter) and isinstance(s['milestones'], list):
                     s['milestones'] = Counter(s['milestones'])
             self.schedulers[i].load_state_dict(s)
-        if self.opt['is_train'] and self.opt['use_swa']:
             # Only load the swa_scheduler if it exists in the state
-            if resume_state.get('swa_scheduler', None):
+        if resume_state.get('swa_scheduler', None):
+            if self.opt['is_train'] and self.opt['use_swa']:
                 resume_swa_scheduler = resume_state['swa_scheduler']
-                for i, s in enumerate(resume_swa_scheduler):
+                for s in resume_swa_scheduler:
                     self.swa_scheduler.load_state_dict(s)
-        if self.opt['is_train'] and self.opt['use_amp']:
-            if resume_state.get('amp_scaler', None):
+        if resume_state.get('amp_scaler', None):
+            if self.opt['is_train'] and self.opt['use_amp']:
                 self.amp_scaler.load_state_dict(resume_state['amp_scaler'])
 
     # TODO: check all these updates
@@ -506,54 +491,56 @@ class BaseModel:
             for i, s in enumerate(self.schedulers):
                 if self.schedulers[i].step_size != train_opt['lr_step_size'] and train_opt['lr_step_size'] is not None:
                     print(
-                        "Updating step_size from {} to {}".format(
-                            self.schedulers[i].step_size, train_opt['lr_step_size']))
+                        f"Updating step_size from {self.schedulers[i].step_size} to {train_opt['lr_step_size']}"
+                    )
                     self.schedulers[i].step_size = train_opt['lr_step_size']
                 # common
                 if self.schedulers[i].gamma != train_opt['lr_gamma'] and train_opt['lr_gamma'] is not None:
                     print(
-                        "Updating lr_gamma from {} to {}".format(
-                            self.schedulers[i].gamma, train_opt['lr_gamma']))
+                        f"Updating lr_gamma from {self.schedulers[i].gamma} to {train_opt['lr_gamma']}"
+                    )
                     self.schedulers[i].gamma = train_opt['lr_gamma']
         if train_opt['lr_scheme'] == 'StepLR_Restart':
             for i, s in enumerate(self.schedulers):
                 if self.schedulers[i].step_sizes != train_opt['lr_step_sizes'] and train_opt[
                     'lr_step_sizes'] is not None:
                     print(
-                        "Updating step_sizes from {} to {}".format(
-                            self.schedulers[i].step_sizes, train_opt['lr_step_sizes']))
+                        f"Updating step_sizes from {self.schedulers[i].step_sizes} to {train_opt['lr_step_sizes']}"
+                    )
                     self.schedulers[i].step_sizes = train_opt['lr_step_sizes']
                 if self.schedulers[i].restarts != train_opt['restarts'] and train_opt['restarts'] is not None:
                     print(
-                        "Updating restarts from {} to {}".format(
-                            self.schedulers[i].restarts, train_opt['restarts']))
+                        f"Updating restarts from {self.schedulers[i].restarts} to {train_opt['restarts']}"
+                    )
                     self.schedulers[i].restarts = train_opt['restarts']
                 if self.schedulers[i].restart_weights != train_opt['restart_weights'] and train_opt[
                     'restart_weights'] is not None:
                     print(
-                        "Updating restart_weights from {} to {}".format(
-                            self.schedulers[i].restart_weights, train_opt['restart_weights']))
+                        f"Updating restart_weights from {self.schedulers[i].restart_weights} to {train_opt['restart_weights']}"
+                    )
                     self.schedulers[i].restart_weights = train_opt['restart_weights']
                 if self.schedulers[i].clear_state != train_opt['clear_state'] and train_opt['clear_state'] is not None:
                     print(
-                        "Updating clear_state from {} to {}".format(
-                            self.schedulers[i].clear_state, train_opt['clear_state']))
+                        f"Updating clear_state from {self.schedulers[i].clear_state} to {train_opt['clear_state']}"
+                    )
                     self.schedulers[i].clear_state = train_opt['clear_state']
                 # common
                 if self.schedulers[i].gamma != train_opt['lr_gamma'] and train_opt['lr_gamma'] is not None:
                     print(
-                        "Updating lr_gamma from {} to {}".format(
-                            self.schedulers[i].gamma, train_opt['lr_gamma']))
+                        f"Updating lr_gamma from {self.schedulers[i].gamma} to {train_opt['lr_gamma']}"
+                    )
                     self.schedulers[i].gamma = train_opt['lr_gamma']
         if train_opt['lr_scheme'] == 'MultiStepLR':
             for i, s in enumerate(self.schedulers):
                 if list(self.schedulers[i].milestones) != train_opt['lr_steps'] and train_opt['lr_steps'] is not None:
-                    if not list(train_opt['lr_steps']) == sorted(train_opt['lr_steps']):
+                    if list(train_opt['lr_steps']) != sorted(
+                        train_opt['lr_steps']
+                    ):
                         raise ValueError('lr_steps should be a list of'
                                          ' increasing integers. Got {}', train_opt['lr_steps'])
                     print(
-                        "Updating lr_steps from {} to {}".format(
-                            list(self.schedulers[i].milestones), train_opt['lr_steps']))
+                        f"Updating lr_steps from {list(self.schedulers[i].milestones)} to {train_opt['lr_steps']}"
+                    )
                     if isinstance(self.schedulers[i].milestones, Counter):
                         self.schedulers[i].milestones = Counter(train_opt['lr_steps'])
                     else:
@@ -561,43 +548,45 @@ class BaseModel:
                 # common
                 if self.schedulers[i].gamma != train_opt['lr_gamma'] and train_opt['lr_gamma'] is not None:
                     print(
-                        "Updating lr_gamma from {} to {}".format(
-                            self.schedulers[i].gamma, train_opt['lr_gamma']))
+                        f"Updating lr_gamma from {self.schedulers[i].gamma} to {train_opt['lr_gamma']}"
+                    )
                     self.schedulers[i].gamma = train_opt['lr_gamma']
         if train_opt['lr_scheme'] == 'MultiStepLR_Restart':
             for i, s in enumerate(self.schedulers):
                 if list(self.schedulers[i].milestones) != train_opt['lr_steps'] and train_opt['lr_steps'] is not None:
-                    if not list(train_opt['lr_steps']) == sorted(train_opt['lr_steps']):
+                    if list(train_opt['lr_steps']) != sorted(
+                        train_opt['lr_steps']
+                    ):
                         raise ValueError('lr_steps should be a list of'
                                          ' increasing integers. Got {}', train_opt['lr_steps'])
                     print(
-                        "Updating lr_steps from {} to {}".format(
-                            list(self.schedulers[i].milestones), train_opt['lr_steps']))
+                        f"Updating lr_steps from {list(self.schedulers[i].milestones)} to {train_opt['lr_steps']}"
+                    )
                     if isinstance(self.schedulers[i].milestones, Counter):
                         self.schedulers[i].milestones = Counter(train_opt['lr_steps'])
                     else:
                         self.schedulers[i].milestones = train_opt['lr_steps']
                 if self.schedulers[i].restarts != train_opt['restarts'] and train_opt['restarts'] is not None:
                     print(
-                        "Updating restarts from {} to {}".format(
-                            self.schedulers[i].restarts, train_opt['restarts']))
+                        f"Updating restarts from {self.schedulers[i].restarts} to {train_opt['restarts']}"
+                    )
                     self.schedulers[i].restarts = train_opt['restarts']
                 if self.schedulers[i].restart_weights != train_opt['restart_weights'] and train_opt[
                     'restart_weights'] is not None:
                     print(
-                        "Updating restart_weights from {} to {}".format(
-                            self.schedulers[i].restart_weights, train_opt['restart_weights']))
+                        f"Updating restart_weights from {self.schedulers[i].restart_weights} to {train_opt['restart_weights']}"
+                    )
                     self.schedulers[i].restart_weights = train_opt['restart_weights']
                 if self.schedulers[i].clear_state != train_opt['clear_state'] and train_opt['clear_state'] is not None:
                     print(
-                        "Updating clear_state from {} to {}".format(
-                            self.schedulers[i].clear_state, train_opt['clear_state']))
+                        f"Updating clear_state from {self.schedulers[i].clear_state} to {train_opt['clear_state']}"
+                    )
                     self.schedulers[i].clear_state = train_opt['clear_state']
                 # common
                 if self.schedulers[i].gamma != train_opt['lr_gamma'] and train_opt['lr_gamma'] is not None:
                     print(
-                        "Updating lr_gamma from {} to {}".format(
-                            self.schedulers[i].gamma, train_opt['lr_gamma']))
+                        f"Updating lr_gamma from {self.schedulers[i].gamma} to {train_opt['lr_gamma']}"
+                    )
                     self.schedulers[i].gamma = train_opt['lr_gamma']
 
     def setup_atg(self):
@@ -663,8 +652,7 @@ class BaseModel:
     def setup_freezeD(self):
         self.feature_loc = None
         train_opt = self.opt['train']
-        loc = train_opt.get('freeze_loc')
-        if loc:
+        if loc := train_opt.get('freeze_loc'):
             disc = self.opt["network_D"].get('type', False)
             if "discriminator_vgg" in disc and "fea" not in disc:
                 loc = (loc * 3) - 2
@@ -773,8 +761,7 @@ class BaseModel:
 
     def setup_gradclip(self, clip_nets):
         train_opt = self.opt["train"]
-        grad_clip = train_opt.get("grad_clip")
-        if grad_clip:
+        if grad_clip := train_opt.get("grad_clip"):
             grad_clip = grad_clip.lower()
             if grad_clip == "value":
                 self.grad_clip = nn.utils.clip_grad_value_
@@ -828,26 +815,27 @@ class BaseModel:
         unscaled gradients.
             Ref: https://pytorch.org/docs/stable/notes/amp_examples.html#id3
         """
-        if (step) % self.accumulations == 0:
-            # Note: changed from (step + 1) to (step)
-            if self.amp:
-                self.amp_scaler.unscale_(optimizer)
-                if opt_flag == 'G':
-                    self.apply_gradclip()
-                self.amp_scaler.step(optimizer)
-                self.amp_scaler.update()
-                # TODO: remove. for debugging AMP
-                # print("AMP Scaler state dict: ", self.amp_scaler.state_dict())
-            else:
-                if opt_flag == 'G':
-                    self.apply_gradclip()
-                optimizer.step()
-            optimizer.zero_grad()
-
+        if (step) % self.accumulations != 0:
+            return
+        # Note: changed from (step + 1) to (step)
+        if self.amp:
+            self.amp_scaler.unscale_(optimizer)
             if opt_flag == 'G':
-                self.optGstep = True
-            elif opt_flag == 'D':
-                self.optDstep = True
+                self.apply_gradclip()
+            self.amp_scaler.step(optimizer)
+            self.amp_scaler.update()
+            # TODO: remove. for debugging AMP
+            # print("AMP Scaler state dict: ", self.amp_scaler.state_dict())
+        else:
+            if opt_flag == 'G':
+                self.apply_gradclip()
+            optimizer.step()
+        optimizer.zero_grad()
+
+        if opt_flag == 'D':
+            self.optDstep = True
+        elif opt_flag == 'G':
+            self.optGstep = True
 
     def backward_D_Basic(self, netD, real=None, fake=None,
         log_dict=None, condition=None):
@@ -896,17 +884,13 @@ class BaseModel:
     def get_auto_norm(self, clip_percentile=10):
         """Automatically calculate the norm for gradient clipping."""
 
-        grad_norm = 0
-        for nets in self.clip_nets:
-            grad_norm += self.calc_gradnorm(nets)
+        grad_norm = sum(self.calc_gradnorm(nets) for nets in self.clip_nets)
         grad_norm /= len(self.clip_nets)
         self.grad_history.append(grad_norm)
 
-        grad_clip_value = torch.quantile(
-            torch.FloatTensor(self.grad_history),
-            clip_percentile/100)
-        
-        return grad_clip_value
+        return torch.quantile(
+            torch.FloatTensor(self.grad_history), clip_percentile / 100
+        )
 
     def apply_gradclip(self):
         """Apply gradient clipping."""

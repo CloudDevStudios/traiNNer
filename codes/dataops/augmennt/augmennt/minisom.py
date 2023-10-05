@@ -382,9 +382,7 @@ class MiniSom(object):
         """Returns the quantization error computed as the average
         distance between each input sample and its best matching unit."""
         self._check_input_len(data)
-        error = 0
-        for x in data:
-            error += fast_norm(x-self._weights[self.winner(x)])
+        error = sum(fast_norm(x-self._weights[self.winner(x)]) for x in data)
         return error/len(data)
 
     def win_map(self, data):

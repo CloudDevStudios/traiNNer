@@ -118,34 +118,31 @@ class ResidualDenseBlock_5C(nn.Module):
     '''
 
     def __init__(self, nf=64, kernel_size=3, gc=32, stride=1, bias=1, pad_type='zero', \
-            norm_type=None, act_type='leakyrelu', mode='CNA', convtype='Conv2D', \
-            spectral_norm=False, gaussian_noise=False, plus=False):
+                norm_type=None, act_type='leakyrelu', mode='CNA', convtype='Conv2D', \
+                spectral_norm=False, gaussian_noise=False, plus=False):
         super(ResidualDenseBlock_5C, self).__init__()
-        
+
         ## +
         self.noise = B.GaussianNoise() if gaussian_noise else None
         self.conv1x1 = B.conv1x1(nf, gc) if plus else None
         ## +
 
         self.conv1 = B.conv_block(nf, gc, kernel_size, stride, bias=bias, pad_type=pad_type, \
-            norm_type=norm_type, act_type=act_type, mode=mode, convtype=convtype, \
-            spectral_norm=spectral_norm)
+                norm_type=norm_type, act_type=act_type, mode=mode, convtype=convtype, \
+                spectral_norm=spectral_norm)
         self.conv2 = B.conv_block(nf+gc, gc, kernel_size, stride, bias=bias, pad_type=pad_type, \
-            norm_type=norm_type, act_type=act_type, mode=mode, convtype=convtype, \
-            spectral_norm=spectral_norm)
+                norm_type=norm_type, act_type=act_type, mode=mode, convtype=convtype, \
+                spectral_norm=spectral_norm)
         self.conv3 = B.conv_block(nf+2*gc, gc, kernel_size, stride, bias=bias, pad_type=pad_type, \
-            norm_type=norm_type, act_type=act_type, mode=mode, convtype=convtype, \
-            spectral_norm=spectral_norm)
+                norm_type=norm_type, act_type=act_type, mode=mode, convtype=convtype, \
+                spectral_norm=spectral_norm)
         self.conv4 = B.conv_block(nf+3*gc, gc, kernel_size, stride, bias=bias, pad_type=pad_type, \
-            norm_type=norm_type, act_type=act_type, mode=mode, convtype=convtype, \
-            spectral_norm=spectral_norm)
-        if mode == 'CNA':
-            last_act = None
-        else:
-            last_act = act_type
+                norm_type=norm_type, act_type=act_type, mode=mode, convtype=convtype, \
+                spectral_norm=spectral_norm)
+        last_act = None if mode == 'CNA' else act_type
         self.conv5 = B.conv_block(nf+4*gc, nf, 3, stride, bias=bias, pad_type=pad_type, \
-            norm_type=norm_type, act_type=last_act, mode=mode, convtype=convtype, \
-            spectral_norm=spectral_norm)
+                norm_type=norm_type, act_type=last_act, mode=mode, convtype=convtype, \
+                spectral_norm=spectral_norm)
 
     def forward(self, x):
         x1 = self.conv1(x)
@@ -157,10 +154,7 @@ class ResidualDenseBlock_5C(nn.Module):
         if self.conv1x1:
             x4 = x4 + x2 #+
         x5 = self.conv5(torch.cat((x, x1, x2, x3, x4), 1))
-        if self.noise:
-            return self.noise(x5.mul(0.2) + x)
-        else:
-            return x5 * 0.2 + x
+        return self.noise(x5.mul(0.2) + x) if self.noise else x5 * 0.2 + x
 
 
 ####################
@@ -191,9 +185,7 @@ class MRRDBNet(nn.Module):
 
         fea = self.lrelu(self.upconv1(torch.nn.functional.interpolate(fea, scale_factor=2, mode='nearest')))
         fea = self.lrelu(self.upconv2(torch.nn.functional.interpolate(fea, scale_factor=2, mode='nearest')))
-        out = self.conv_last(self.lrelu(self.HRconv(fea)))
-
-        return out
+        return self.conv_last(self.lrelu(self.HRconv(fea)))
 
 class ResidualDenseBlock_5CM(nn.Module):
     '''

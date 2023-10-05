@@ -110,7 +110,7 @@ def label2rgb(label_field, image, kind='mix', bg_label=-1,
                     mean = image[mask].mean(axis=0)
                     median = np.median(image[mask], axis=0)
                     color = 0.5*mean + 0.5*median
-                elif 40 < std:
+                elif std > 40:
                     color = np.median(image[mask], axis=0)
 
             # test check, may not be needed
@@ -126,9 +126,7 @@ def label2rgb(label_field, image, kind='mix', bg_label=-1,
             out[mask] = color
             rgb_labels.append(color)
 
-    if ret_rbg_labels:
-        return out, rgb_labels
-    return out
+    return (out, rgb_labels) if ret_rbg_labels else out
 
 
 @preserve_shape
@@ -204,10 +202,30 @@ def superpixels(img=None, n_segments: int=200, cs=None, n_iters: int=10,
         # ruler: Chooses the enforcement of superpixel smoothness factor
         ruler = 10.0
 
-    if algo == 'seeds':
+    if algo == 'mslic':
+        # MSLIC algorithm:
+        # cv2.ximgproc.SLICType.MSLIC will optimize using manifold methods
+        # resulting in more content-sensitive superpixels (value: 102).
+        ss = cv2.ximgproc.createSuperpixelSLIC(img_sp, 102, regionsize, ruler)
+        ss.iterate(n_iters)
+    elif algo == 'seeds':
         # SEEDS algorithm
         ss = cv2.ximgproc.createSuperpixelSEEDS(w, h, c, n_segments, num_levels, prior, num_histogram_bins)
         ss.iterate(img_sp, n_iters)
+    elif algo == 'sk_felzenszwalb':
+        # skimage Felzenszwalb algorithm:
+        min_size = int(0.5*(h+w)/2.5)  # 2.5 is the rough empirical estimate factor, needs testing
+        # Note: can make k relative to image size with:
+        # k = int(regionsize/1.5)
+        # and this k calculation produces about the correct number of
+        # segments, but they don't look too good. Probably better to
+        # leave k=10 and apply a reduction afterwards
+        labels = felzenszwalb(img_sp, scale=10, sigma=0.8, min_size=min_size)
+
+    elif algo == 'sk_slic':
+        # skimage SLIC algorithm:
+        labels = slic(img_sp, n_segments=n_segments, compactness=ruler,
+            max_iter=n_iters, sigma=1)  # sigma=0
     elif algo == 'slic':
         # SLIC algorithm:
         # cv2.ximgproc.SLICType.SLIC segments image using a desired region_size (value: 100)
@@ -218,27 +236,6 @@ def superpixels(img=None, n_segments: int=200, cs=None, n_iters: int=10,
         # cv2.ximgproc.SLICType.SLICO will optimize using adaptive compactness factor (value: 101)
         ss = cv2.ximgproc.createSuperpixelSLIC(img_sp, 101, regionsize, ruler)
         ss.iterate(n_iters)
-    elif algo == 'mslic':
-        # MSLIC algorithm:
-        # cv2.ximgproc.SLICType.MSLIC will optimize using manifold methods
-        # resulting in more content-sensitive superpixels (value: 102).
-        ss = cv2.ximgproc.createSuperpixelSLIC(img_sp, 102, regionsize, ruler)
-        ss.iterate(n_iters)
-    elif algo == 'sk_slic':
-        # skimage SLIC algorithm:
-        labels = slic(img_sp, n_segments=n_segments, compactness=ruler,
-            max_iter=n_iters, sigma=1)  # sigma=0
-    elif algo == 'sk_felzenszwalb':
-        # skimage Felzenszwalb algorithm:
-        min_size = int(0.5*(h+w)/2.5)  # 2.5 is the rough empirical estimate factor, needs testing
-        k = 10  # a larger k causes a preference for larger components
-        # Note: can make k relative to image size with:
-        # k = int(regionsize/1.5)
-        # and this k calculation produces about the correct number of
-        # segments, but they don't look too good. Probably better to
-        # leave k=10 and apply a reduction afterwards
-        labels = felzenszwalb(img_sp, scale=k, sigma=0.8, min_size=min_size)
-
     if 'sk' not in algo:
         # retrieve the segmentation result
         labels = ss.getLabels()
@@ -278,7 +275,7 @@ def segmentation_reduction(img, labels, n_segments, reduction=None, kind='mix', 
 
         merged_labels = selective_search(img_cvtcolor, labels,
             seg_num=n_segments, sim_strategy='CTSF')
-        rgbmap = label2rgb(merged_labels, img, kind=kind)
+        return label2rgb(merged_labels, img, kind=kind)
     elif reduction == 'cluster':
         # aggregate colors in each of the labels and output
         _, rbg_labels = label2rgb(
@@ -287,18 +284,18 @@ def segmentation_reduction(img, labels, n_segments, reduction=None, kind='mix', 
         ret, klabels, centroids = apply_kmeans(
             np.array(rbg_labels, dtype=np.float32), n_segments)
         reduced_colors = centroids[klabels.flatten()]
-        rgbmap = label2rgb(labels, img, reduced_colors=reduced_colors)
+        return label2rgb(labels, img, reduced_colors=reduced_colors)
     elif reduction == 'rag':
         # Region Adjacency Graph (RAG)
         g = rag_mean_color(img, labels)
         merged_labels = merge_hierarchical(labels, g, thresh=35,
             rag_copy=False, in_place_merge=True, merge_func=merge_mean_color,
             weight_func=_weight_mean_color)
-        rgbmap = label2rgb(merged_labels, img, kind=kind, bg_label=-1, bg_color=(0, 0, 0))
+        return label2rgb(
+            merged_labels, img, kind=kind, bg_label=-1, bg_color=(0, 0, 0)
+        )
     else:
-        rgbmap = img
-
-    return rgbmap
+        return img
 
 
 
@@ -327,7 +324,7 @@ def selective_search(img, img_seg, seg_num=200,
     # adaptive adjustment to image size
     # for larger images or images with many initial segments
     if ada_regions and S.num_regions() > 2*seg_num:  # 3?
-        h, w = img_seg.shape[0:2]
+        h, w = img_seg.shape[:2]
         seg_num = int(np.sqrt(h*w)*0.8)
 
     # start hierarchical grouping
@@ -397,8 +394,7 @@ class HierarchicalGrouping:
             neighbors (list): list of labels of neighbors
         """
         boundary = find_boundaries(self.img_seg == label, mode='outer')
-        neighbors = np.unique(self.img_seg[boundary]).tolist()
-        return neighbors
+        return np.unique(self.img_seg[boundary]).tolist()
 
     def get_highest_similarity(self):
         return sorted(self.s.items(), key=lambda i: i[1])[-1][0]
@@ -434,12 +430,7 @@ class HierarchicalGrouping:
         self.img_seg[self.img_seg == j] = new_label
 
     def remove_similarities(self, i, j):
-        # mark keys for region pairs to be removed
-        key_to_delete = []
-        for key in self.s.keys():
-            if (i in key) or (j in key):
-                key_to_delete.append(key)
-
+        key_to_delete = [key for key in self.s.keys() if (i in key) or (j in key)]
         for key in key_to_delete:
             del self.s[key]
 
@@ -459,7 +450,7 @@ class HierarchicalGrouping:
                                             self.sim_strategy)
 
     def is_empty(self):
-        return True if not self.s.keys() else False
+        return not self.s.keys()
 
     def num_regions(self):
         return len(self.s.keys())
@@ -467,12 +458,12 @@ class HierarchicalGrouping:
 
 def _calculate_color_sim(ri, rj):
     """Calculate color similarity using histogram intersection"""
-    return sum([min(a, b) for a, b in zip(ri["color_hist"], rj["color_hist"])])
+    return sum(min(a, b) for a, b in zip(ri["color_hist"], rj["color_hist"]))
 
 
 def _calculate_texture_sim(ri, rj):
     """Calculate texture similarity using histogram intersection"""
-    return sum([min(a, b) for a, b in zip(ri["texture_hist"], rj["texture_hist"])])
+    return sum(min(a, b) for a, b in zip(ri["texture_hist"], rj["texture_hist"]))
 
 
 def _calculate_size_sim(ri, rj, imsize):
